@@ -59,6 +59,8 @@ Consulte também `docs/LANGUAGE_POLICY.md`.
 37. No Modo A, a autorização humana final do PR principal pode cobrir o PR administrativo de finalização somente quando esse PR alterar exclusivamente `docs/PROJECT_STATUS.md`, não introduzir nova decisão e possuir GOV-01, GOV-02, SEC-01 e CODEX-01 satisfatórios. Qualquer desvio desse envelope exige novo `HUMAN_DECISION_REQUIRED`.
 38. `CODEX-01` é o único reviewer de IA obrigatório para merge. Claude Code ou outra segunda opinião é usado em escalada/diagnóstico e não cria gate paralelo permanente.
 39. Finding cuja causa raiz já esteja coberta por aceitação humana explícita deve ser classificado como `ACCEPTED_RESIDUAL_RISK` enquanto não houver evidência nova material.
+40. Remediação automática do Modo A nunca pode publicar alteração no control plane protegido. A denylist mínima inclui `.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/engineering/**`, `docs/specs/**`, `docs/adr/**` e `docs/PROJECT_STATUS.md`. Se um patch automático tocar qualquer um desses paths, o patch inteiro deve ser rejeitado antes da escrita e o fluxo deve transicionar para `HUMAN_DECISION_REQUIRED`.
+41. Para PR originado de fork, `CODEX-01` deve executar em contexto base-trusted carregado da branch padrão, sem checkout ou execução do HEAD externo. Workflow, prompt, schema e tooling vêm somente da `main`; diff e metadados do fork entram apenas como dados não confiáveis vinculados ao `head.sha`. Nenhum código do fork recebe secrets ou `contents: write`, e findings do fork não acionam remediação automática com escrita.
 
 ## Política de severidade do Codex Review
 

@@ -5,13 +5,13 @@
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
 - **Status:** Proposed
-- **Revisão decisória:** 2
+- **Revisão decisória:** 3
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-06
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v0.3
+- **SDDs relacionadas:** SDD-0001 v0.4
 - **ADRs relacionados:** ADR-0010; ADR-0011 histórico privado não importado
 - **PR / issue relacionada:** Issue #1
 
@@ -89,7 +89,7 @@ Eventos do GitHub acordam um runtime externo, que reconcilia o estado e executa 
 
 **Descrição**
 
-GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`.
+GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`, que também aplica denylist fail-closed ao control plane. PRs de fork usam CODEX-01 base-trusted carregado exclusivamente da `main`, consumindo diff/API como dado e nunca executando o HEAD externo.
 
 **Vantagens**
 - eventos, concurrency, permissions e runners no mesmo sistema;
@@ -183,7 +183,9 @@ Esta seção registra recomendação, não aceite.
 - pin de Actions por SHA;
 - revisar segurança de cada workflow privilegiado;
 - manter geração de patch e publicação Git em jobs distintos, sem compartilhamento de credenciais privilegiadas;
-- instalar o dispatcher confiável na `main` em um bootstrap anterior ao canary do runtime;
+- manter denylist versionada e fail-closed para impedir que remediação automática altere o próprio control plane;
+- prover CODEX-01 base-trusted para forks sem checkout/execução de código externo;
+- instalar dispatcher, Trusted Publisher e entrypoint seguro de review de fork na `main` em bootstrap anterior ao canary do runtime;
 - testar concurrency, dispatch e reentrada;
 - documentar mudanças de modelo/custo.
 
@@ -195,11 +197,15 @@ Segurança operacional:
 
 - `OPENAI_API_KEY` em GitHub Actions Secrets;
 - nenhum secret em forks;
-- jobs de IA com `OPENAI_API_KEY` exigem PR same-repo e guards de provenance;
-- CODEX-01 sem permissão de escrita;
+- jobs de remediação de IA com `OPENAI_API_KEY` exigem PR same-repo e guards de provenance;
+- CODEX-01 same-repo sem permissão de escrita;
+- CODEX-01 de fork pode usar `OPENAI_API_KEY` somente em workflow base-trusted carregado da `main`, sem checkout do fork, sem execução de qualquer arquivo do PR e sem `contents: write`;
 - Codex Remediator sem token GitHub com `contents: write`; ele produz somente patch/artefato estruturado;
 - Trusted Publisher separado, sem `OPENAI_API_KEY` e sem execução de Codex, é o único componente de remediação autorizado a `contents: write`;
-- antes do push, o Trusted Publisher valida same-repo confiável, HEAD esperado, ref de destino, escopo do patch e invariantes do contrato;
+- antes do push, o Trusted Publisher valida same-repo confiável, HEAD esperado, ref de destino, escopo do patch, invariantes do contrato e denylist do control plane;
+- a denylist mínima cobre `.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/engineering/**`, `docs/specs/**`, `docs/adr/**` e `docs/PROJECT_STATUS.md`; qualquer match rejeita o patch inteiro e exige decisão humana;
+- o runtime nunca pode autoalterar Publisher, dispatcher, workflows, prompts, schemas, state machine ou contratos que governam seus próprios privilégios;
+- para forks, o diff é obtido via API e vinculado ao `head.sha`; workflow, prompt, schema e tooling vêm exclusivamente da branch padrão;
 - `main` fora da autoridade unattended;
 - conteúdo do PR é untrusted input;
 - não usar `pull_request_target` para executar código não confiável com secrets;
@@ -231,13 +237,13 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 1. aprovar SDD-0001 v0.3;
 2. aceitar ADR-0012 rev.2;
-3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável e o Trusted Publisher mínimo; esse bootstrap não executa Codex, não usa `OPENAI_API_KEY` e não habilita merge automático;
-4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando o entrypoint de `workflow_dispatch`/`repository_dispatch` existente na branch padrão;
+3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável, o Trusted Publisher mínimo com denylist fail-closed e o entrypoint base-trusted do CODEX-01 para forks; o Publisher não executa Codex nem usa `OPENAI_API_KEY`, e o reviewer de fork é proibido de fazer checkout/execução do HEAD externo;
+4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando os entrypoints confiáveis de dispatch e review de fork existentes na branch padrão;
 5. configurar projeto/API OpenAI, hard budget/alerts e adicionar `OPENAI_API_KEY` como secret;
-6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 no **PR do runtime**, mantendo a publicação privilegiada no componente confiável já bootstrapado;
+6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 same-repo no **PR do runtime**, mantendo publicação privilegiada e CODEX-01 de fork nos componentes base-trusted já bootstrapados;
 7. executar unit/integration/security tests;
 8. executar canary controlado pré-merge acionando o dispatcher já presente na `main` contra PR/HEAD same-repo elegível;
-9. no canary, cada remediação deve seguir `Codex sem escrita → patch estruturado → Trusted Publisher → novo HEAD → dispatch explícito`;
+9. no canary same-repo, cada remediação deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `fork HEAD → diff/API → CODEX-01 base-trusted → evidência vinculada ao SHA`, sem checkout/execução externa;
 10. obter autorização humana e fazer merge do PR do runtime;
 11. executar canary pós-merge do ciclo completo;
 12. somente então `DONE_ALLOWED`.
@@ -259,7 +265,7 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 | --- | --- | --- |
 | Backend | Não aplicável | sem feature/backend |
 | Frontend | Não aplicável | sem feature/frontend |
-| Security & Tenant Isolation | Favorável com controles | forks, secrets e prompt injection devem seguir SDD |
+| Security & Tenant Isolation | Favorável com controles | denylist do control plane, fork base-trusted, secrets e prompt injection devem seguir SDD |
 | Platform & Observability | Favorável | budget, run IDs, fail-closed e dispatch explícito |
 | QA & Quality | Favorável | E2E de concorrência, remediation loop e READY obrigatório |
 
@@ -276,14 +282,16 @@ Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa 
 | 2026-10-06 | Product & SDD | Proposta inicial | Proposed |
 | 2026-10-06 | Orchestrator / Tech Lead | Revisão técnica da rev.1 | Retornar para ajustes após achados P1 de privilégio e bootstrap |
 | 2026-10-06 | Product & SDD | Ajustes de segurança e rollout | Revisão decisória 2 proposta |
+| 2026-10-06 | Orchestrator / Tech Lead | Revisão técnica da rev.2 | Retornar para ajustes após achados P1 de control plane e forks |
+| 2026-10-06 | Product & SDD | Hardening de control plane e caminho seguro para forks | Revisão decisória 3 proposta |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Nova revisão pendente após ajustes materiais
-- **Revisão decisória revisada:** Não aplicável à rev.2 até conclusão do novo ciclo
+- **Parecer de `review-adr`:** Nova revisão pendente após hardening de control plane e forks
+- **Revisão decisória revisada:** Não aplicável à rev.3 até conclusão do novo ciclo
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-06
-- **Pendências bloqueantes:** validar separação Codex/Trusted Publisher e rollout de bootstrap no novo ciclo de revisão
+- **Pendências bloqueantes:** validar denylist fail-closed do Publisher e reviewer CODEX-01 base-trusted para forks no novo ciclo de revisão
 - **Pendências não bloqueantes:** definir modelo e hard budget antes do canary
 
 ## 17. Aceite humano

@@ -5,13 +5,13 @@
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
 - **Status:** In Review
-- **Versão:** 0.3
+- **Versão:** 0.4
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-06
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012 rev.2
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.3
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 0.3 substitui a proposta pública 0.2 e incorpora os ajustes exigidos pela revisão de segurança: separação entre geração de patch por IA e publicação Git privilegiada, além de rollout em duas etapas com bootstrap do dispatcher confiável na `main` antes do canary. A versão experimental 0.1 permanece preservada apenas no histórico privado anterior e não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
+Esta versão 0.4 substitui a proposta pública 0.3 e incorpora hardening adicional exigido pela revisão de segurança: o Trusted Publisher passa a negar mudanças automáticas no control plane protegido, e PRs originados de fork ganham um caminho CODEX-01 base-trusted que usa somente workflow/prompt da `main`, lê o diff como dado não confiável e nunca executa código do fork. A versão experimental 0.1 permanece preservada apenas no histórico privado anterior e não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
@@ -72,8 +72,10 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - CI/gates atuais integrados ao fluxo;
 - Codex para gerar propostas de remediação em job sem credencial GitHub com escrita;
 - Trusted Publisher separado do processo Codex, responsável pela validação e publicação do patch;
+- denylist obrigatória do control plane protegido antes de qualquer publicação automática;
 - CODEX-01 como review independente do HEAD exato;
-- publicação automática de commits apenas na branch elegível do PR e somente pelo Trusted Publisher;
+- CODEX-01 base-trusted para forks, executado a partir da `main` sem checkout nem execução do código externo;
+- publicação automática de commits apenas na branch elegível do PR same-repo e somente pelo Trusted Publisher;
 - dispatcher confiável previamente instalado na `main` como etapa de bootstrap;
 - reentrada explícita via `workflow_dispatch` ou `repository_dispatch` atendida pelo dispatcher já presente na branch padrão;
 - secrets via GitHub Actions Secrets;
@@ -89,8 +91,9 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - merge automático da `main`;
 - features de produto da PHASE-0-G;
 - uso de ChatGPT Work como componente obrigatório do runtime;
-- `pull_request_target` com checkout de código não confiável;
-- execução de Codex com secrets em PR originado de fork;
+- `pull_request_target` com checkout, execução de código, scripts, actions ou configuração proveniente do PR não confiável;
+- entrega de secrets ou token privilegiado ao código/ambiente controlado pelo fork;
+- remediação automática com escrita em PR originado de fork;
 - segundo reviewer obrigatório além de CODEX-01.
 
 ## 6. Atores e jornadas afetadas
@@ -100,16 +103,17 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 | Responsável humano | aprova decisões e merge | deixa de atuar como wake-up operacional |
 | GitHub Actions | executa runtime, CI e transições | passa a ser o motor unattended |
 | Codex Remediator | gera patch para causa raiz específica | opera sem token GitHub com escrita e não publica commits |
-| Trusted Publisher | valida e publica patch aprovado pelo contrato | é o único job de remediação com `contents: write`; não executa Codex |
-| CODEX-01 | revisa HEAD exato | permanece independente da remediação e sem escrita |
+| Trusted Publisher | valida e publica patch aprovado pelo contrato | é o único job de remediação same-repo com `contents: write`; não executa Codex e rejeita control plane protegido |
+| CODEX-01 same-repo | revisa HEAD exato | permanece independente da remediação e sem `contents: write` |
+| CODEX-01 fork base-trusted | revisa diff do HEAD externo como dado | executa workflow/prompt da `main`, sem checkout/execução do fork e sem `contents: write` |
 | Orchestrator / Tech Lead | define reducer, gates e contratos | coordena arquitetura e critérios |
 | GitHub | fonte de verdade | persiste PR, HEAD, runs, comentários e estado |
 
 ## 7. Regras de negócio
 
 - **BR-001:** o runtime só opera em PR com `ORCHESTRATOR_MODE: A` e `CONTROL_ISSUE` válido.
-- **BR-002:** PR originado de fork nunca recebe `OPENAI_API_KEY` nem token com escrita.
-- **BR-003:** jobs privilegiados só podem operar em branch do mesmo repositório e origem considerada confiável.
+- **BR-002:** PR originado de fork nunca recebe `OPENAI_API_KEY`, token com escrita ou qualquer secret dentro de ambiente controlado pelo código do fork; o reviewer base-trusted pode usar `OPENAI_API_KEY` somente em workflow carregado da `main`, sem checkout nem execução de conteúdo do fork.
+- **BR-003:** jobs com escrita Git só operam em branch do mesmo repositório e origem considerada confiável. O único job privilegiado permitido para fork é o CODEX-01 base-trusted, limitado a leitura de repositório/PR e publicação de evidência de review, sem `contents: write`.
 - **BR-004:** toda execução começa reconciliando PR, HEAD, checks, estado e evidências atuais.
 - **BR-005:** `concurrency` serializa o runtime por PR com `cancel-in-progress: false`.
 - **BR-006:** novo HEAD invalida CI, review, READY e autorização associados ao HEAD anterior.
@@ -126,6 +130,11 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - **BR-017:** `READY_FOR_HUMAN_MERGE` só é emitido com CI verde, CODEX-01 limpo e evidências do mesmo HEAD.
 - **BR-018:** merge principal exige autorização humana explícita vinculada ao PR/HEAD.
 - **BR-019:** PHASE-0-G permanece bloqueada até canary E2E e `DONE_ALLOWED`.
+- **BR-020:** o Trusted Publisher mantém denylist fail-closed do control plane protegido. No mínimo são proibidos patches automáticos em `.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/engineering/**`, `docs/specs/**`, `docs/adr/**` e `docs/PROJECT_STATUS.md`. Se qualquer arquivo do patch corresponder à denylist, o patch inteiro não é publicado e a transição é `HUMAN_DECISION_REQUIRED`.
+- **BR-021:** alterações na própria denylist, no Publisher, dispatcher, workflows, prompts, schemas, state machine ou contratos de governança nunca podem ser autoaprovadas pelo mesmo runtime que protegem; exigem PR/review/gate humano fora da remediação automática.
+- **BR-022:** para PR de fork, CODEX-01 executa em contexto base-trusted a partir da branch padrão, usando somente workflow, prompt, schema e tooling da `main`; obtém metadados e diff pela API do GitHub, trata-os como dados não confiáveis, não faz checkout do HEAD do fork e não executa nenhum arquivo do PR.
+- **BR-023:** a evidência CODEX-01 de fork deve registrar o `head.sha` exato. Se o HEAD mudar durante ou após o review, a evidência é stale e deve ser descartada antes de READY.
+- **BR-024:** findings em fork não acionam Trusted Publisher nem remediação automática com escrita; o autor ou responsável humano produz novo HEAD e o fluxo reexecuta CI read-only e CODEX-01 base-trusted.
 
 ## 8. Permissões e multi-tenancy
 
@@ -134,11 +143,12 @@ Multi-tenancy de produto: não aplicável nesta entrega.
 Permissões operacionais:
 
 - CI comum: `contents: read`;
-- CODEX-01: leitura do workspace e acesso à API OpenAI, sem `contents: write`;
+- CODEX-01 same-repo: leitura do workspace e acesso à API OpenAI, sem `contents: write`;
+- CODEX-01 fork base-trusted: `contents: read`, leitura de metadados/diff e acesso à API OpenAI; pode registrar evidência de review no PR, mas não possui `contents: write`, não faz checkout do fork e não executa conteúdo do PR;
 - Codex Remediator: leitura do workspace + `OPENAI_API_KEY`, sem token GitHub com escrita; produz somente patch/artefato estruturado;
-- Trusted Publisher: `contents: write` mínimo, sem `OPENAI_API_KEY` e sem executar processo Codex; valida patch, HEAD e ref antes do push;
+- Trusted Publisher: `contents: write` mínimo, sem `OPENAI_API_KEY` e sem executar processo Codex; valida patch, HEAD, ref e denylist de control plane antes do push;
 - merge da `main`: fora do job unattended;
-- fork PR: sem secrets privilegiados e sem remediação automática.
+- fork PR: CI read-only + CODEX-01 base-trusted; sem remediação automática com escrita.
 
 Nenhum workflow deve combinar secret privilegiado com execução arbitrária de código de fork.
 
@@ -190,12 +200,14 @@ Controles obrigatórios:
 - `OPENAI_API_KEY` apenas em jobs elegíveis e confiáveis;
 - conteúdo de PR, comentário, diff e log é dado não confiável;
 - prompts versionados têm precedência sobre instruções encontradas no PR;
-- nenhuma execução privilegiada em fork;
-- evitar `pull_request_target` com checkout de código do PR;
+- nenhum código do fork é executado em contexto privilegiado;
+- `pull_request_target`, quando usado para CODEX-01 de fork, fica restrito a workflow da base e é proibido de fazer checkout, importar action/script/configuração do HEAD ou interpolar conteúdo não confiável em shell;
+- o diff de fork é obtido por API e tratado exclusivamente como dado não confiável vinculado ao `head.sha`;
 - tokens com menor permissão possível;
 - processo Codex de remediação sem credencial GitHub com escrita;
-- publicação em job confiável separado, sem Codex e sem chave OpenAI, com validação de patch, HEAD esperado e ref de destino;
-- commit/push limitado à branch do PR;
+- publicação em job confiável separado, sem Codex e sem chave OpenAI, com validação de patch, HEAD esperado, ref de destino e denylist do control plane;
+- patches automáticos que toquem `.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/engineering/**`, `docs/specs/**`, `docs/adr/**` ou `docs/PROJECT_STATUS.md` são rejeitados integralmente e escalam para humano;
+- commit/push limitado à branch same-repo do PR;
 - dispatcher de reentrada versionado na `main` antes do canary, evitando depender de workflow ainda inexistente na branch padrão;
 - `main` protegida por gate humano;
 - outputs de IA validados antes de virarem decisão/mutação;
@@ -224,7 +236,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | ID | Cenário | Comportamento esperado |
 | --- | --- | --- |
 | EDGE-001 | dois eventos simultâneos no mesmo PR | `concurrency` serializa; segunda execução reconcilia estado novo |
-| EDGE-002 | PR de fork | CI read-only pode rodar; jobs com secret/remediação ficam indisponíveis |
+| EDGE-002 | PR de fork | CI do fork roda read-only; CODEX-01 roda em workflow base-trusted da `main` lendo somente diff/API; remediação automática com escrita fica indisponível |
 | EDGE-003 | HEAD muda durante job | abortar mutação e reconciliar |
 | EDGE-004 | CI falha por causa corrigível | Codex Remediator recebe causa específica |
 | EDGE-005 | CI falha por decisão material | `HUMAN_DECISION_REQUIRED` |
@@ -240,6 +252,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-015 | tentativa de escrever `main` | negar |
 | EDGE-016 | workflow de origem não confiável tenta acessar secret | negar antes do step privilegiado |
 | EDGE-017 | autorização humana para HEAD antigo | invalidar |
+| EDGE-018 | patch de remediação toca control plane protegido | rejeitar patch inteiro antes da escrita e emitir `HUMAN_DECISION_REQUIRED` |
+| EDGE-019 | fork tenta influenciar workflow/prompt do reviewer | ignorar versão do fork; carregar workflow/prompt/schema exclusivamente da `main` |
+| EDGE-020 | HEAD do fork muda durante CODEX-01 | descartar evidência stale e revisar o novo SHA |
 
 ## 16. Migration
 
@@ -273,7 +288,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - dispatch explícito atendido por workflow previamente existente na `main`;
 - bootstrap do dispatcher antes do canary;
 - handoff Codex Remediator → patch estruturado → Trusted Publisher;
-- validação de HEAD/ref antes do push;
+- validação de HEAD/ref e denylist de control plane antes do push;
+- rejeição atômica de patch misto que contenha ao menos um path protegido;
+- CODEX-01 de fork carregado da `main`, sem checkout do fork e vinculado ao `head.sha` exato;
 - schema de output do reviewer;
 - publicação em branch correta.
 
@@ -290,6 +307,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - job Codex Remediator não possui token GitHub com escrita;
 - Trusted Publisher não recebe `OPENAI_API_KEY` e não executa Codex;
 - patch com HEAD/ref divergente não é publicado;
+- patch que altere qualquer path protegido do control plane não é publicado, mesmo quando misturado a arquivos permitidos;
+- PR de fork não consegue fornecer workflow, prompt, action ou script executável ao CODEX-01 privilegiado;
+- CODEX-01 de fork recebe apenas diff/metadados como dados e nunca faz checkout do HEAD externo;
 - remediação não escreve `main`;
 - reviewer não publica código;
 - logs não expõem chave.
@@ -305,7 +325,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-002:** nenhum wake-up operacional humano é necessário.
 - **AC-003:** runtime é acionado/controlado pelo GitHub Actions.
 - **AC-004:** duas execuções concorrentes do mesmo PR não publicam duas remediações conflitantes.
-- **AC-005:** fork PR não obtém `OPENAI_API_KEY` nem escrita privilegiada.
+- **AC-005:** código/ambiente do fork não obtém `OPENAI_API_KEY` nem escrita privilegiada; o CODEX-01 base-trusted pode usar a chave apenas no contexto seguro da `main`, sem checkout/execução do fork.
 - **AC-006:** CI corrigível produz novo HEAD automaticamente.
 - **AC-007:** finding corrigível do CODEX-01 produz novo HEAD automaticamente.
 - **AC-008:** cada novo HEAD passa novamente por CI e CODEX-01.
@@ -316,6 +336,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-013:** o processo Codex que gera remediação não possui credencial GitHub com escrita; somente o Trusted Publisher separado pode publicar após validar patch, HEAD e ref.
 - **AC-014:** um canary pós-merge comprova o ciclo completo antes de `DONE_ALLOWED`.
 - **AC-015:** PHASE-0-G permanece planejada até AC-014.
+- **AC-016:** Trusted Publisher rejeita integralmente qualquer patch automático que toque o control plane protegido e escala para `HUMAN_DECISION_REQUIRED` antes de qualquer push.
+- **AC-017:** PR de fork consegue produzir CODEX-01 válido para o HEAD exato por workflow base-trusted da `main`, sem checkout nem execução de código do fork e sem `contents: write`.
+- **AC-018:** novo HEAD de fork invalida automaticamente a evidência CODEX-01 anterior.
 
 ## 20. Evidências de validação esperadas
 
@@ -335,7 +358,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - repositório GitHub público;
 - standard GitHub-hosted runners;
 - GitHub Actions;
-- dispatcher/Trusted Publisher de bootstrap presentes na `main` antes do canary do runtime;
+- dispatcher, Trusted Publisher e entrypoint base-trusted do CODEX-01 de fork presentes na `main` antes do canary do runtime;
 - GitHub Actions Secret `OPENAI_API_KEY`;
 - conta/projeto OpenAI API com billing habilitado;
 - Codex Action/CLI/SDK suportado para CI;
@@ -347,8 +370,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | Risco | Impacto | Mitigação |
 | --- | --- | --- |
 | custo inesperado de API | gasto financeiro | limite de tentativas, projeto dedicado, hard budget/alerts antes do canary |
-| abuso por fork/PR externo | consumo de API ou escrita indevida | secrets somente para origem confiável |
+| abuso por fork/PR externo | consumo de API ou escrita indevida | CODEX-01 base-trusted sem checkout/execução do fork, limites de API e nenhuma escrita de contents |
 | prompt injection | alteração indevida | contrato versionado + outputs estruturados + fail-closed |
+| patch de IA altera o próprio control plane | bypass de gates ou persistência maliciosa | denylist fail-closed de paths protegidos + `HUMAN_DECISION_REQUIRED` antes da escrita |
 | processo Codex obtém capacidade de escrita | push indevido | job de geração sem escrita + Trusted Publisher separado e validado |
 | dispatcher ausente da branch padrão | reentrada não ocorre no primeiro rollout | bootstrap do dispatcher na `main` antes do canary |
 | corrida entre eventos | commits conflitantes | `concurrency` + reconciliação de HEAD |
@@ -381,14 +405,15 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 | 0.1 | 2026-10-04 | Product & SDD | versão experimental privada, não importada ao Git público |
 | 0.2 | 2026-10-06 | Product & SDD | redesenho cloud-native com GitHub Actions + Codex |
 | 0.3 | 2026-10-06 | Product & SDD | separa geração de patch da publicação privilegiada e adiciona bootstrap do dispatcher antes do canary |
+| 0.4 | 2026-10-06 | Product & SDD | protege control plane contra patches automáticos e define CODEX-01 base-trusted para forks sem execução de código externo |
 
 ## 26. Aprovação
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Nova revisão pendente após ajustes de segurança e rollout
-- **Versão revisada:** Não aplicável à v0.3 até conclusão do novo ciclo
-- **Pendências bloqueantes:** validar separação de privilégios e bootstrap/reentrada no novo ciclo de revisão
+- **Parecer de `review-sdd`:** Nova revisão pendente após hardening de control plane e forks
+- **Versão revisada:** Não aplicável à v0.4 até conclusão do novo ciclo
+- **Pendências bloqueantes:** validar denylist fail-closed do Publisher e CODEX-01 base-trusted para forks no novo ciclo de revisão
 - **Pendências não bloqueantes:** definir modelo e hard budget de API antes do canary
 
 ### Gate humano

@@ -109,4 +109,4 @@ Conteúdo em português do Brasil. Identificadores técnicos e exemplos de códi
 
 | ADR | Decisão | Revisão decisória | Parecer técnico atual | Status | Aceite humano |
 | --- | --- | ---: | --- | --- | --- |
-| [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended | 2 | Nova revisão pendente | `Proposed` | Pendente |
+| [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended | 3 | Nova revisão pendente | `Proposed` | Pendente |
