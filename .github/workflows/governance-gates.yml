@@ -1,0 +1,90 @@
+name: Governance Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  governance:
+    name: governance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          fetch-depth: 0
+
+      - name: Validar fontes obrigatórias de governança
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            "AGENTS.md"
+            "docs/PROJECT_STATUS.md"
+            "docs/architecture/ARCHITECTURE.md"
+            "docs/engineering/DEFINITION_OF_DONE.md"
+            "docs/engineering/CI_GATES.md"
+            "docs/adr/ADR-0010-ci-cd-merge.md"
+            ".ai/skills/validate-definition-of-done.md"
+            ".github/scripts/check_project_status_finalization.py"
+            ".github/scripts/test_check_project_status_finalization.py"
+            ".github/scripts/mode_a_state.py"
+            ".github/scripts/test_mode_a_state.py"
+            ".ai/runtime/MODE_A.md"
+          )
+
+          for path in "${required_files[@]}"; do
+            if [[ ! -f "$path" ]]; then
+              echo "::error file=$path::Arquivo obrigatório de governança ausente."
+              exit 1
+            fi
+          done
+
+          grep -q "CODEX-01" docs/engineering/CI_GATES.md
+          grep -q "SEC-01" docs/engineering/CI_GATES.md
+          grep -q "DONE_ALLOWED" docs/engineering/DEFINITION_OF_DONE.md
+          grep -q "Definition of Done operacional" AGENTS.md
+
+      - name: Testar contrato GOV-02
+        shell: bash
+        run: python3 .github/scripts/test_check_project_status_finalization.py
+
+      - name: Testar contrato Mode A
+        shell: bash
+        run: python3 .github/scripts/test_mode_a_state.py
+
+      - name: Validar escopo de PR administrativo de finalização
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/check_project_status_finalization.py \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA"
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          fetch-depth: 0
+
+      - name: SEC-01 - Detectar secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # refs/tags/v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
