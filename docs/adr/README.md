@@ -99,3 +99,14 @@ Não editar o passado para fazer uma decisão antiga parecer compatível com a n
 ## Idioma
 
 Conteúdo em português do Brasil. Identificadores técnicos e exemplos de código permanecem em inglês conforme `docs/LANGUAGE_POLICY.md`.
+
+
+## IDs históricos não importados
+
+- **ADR-0011:** ID consumido por experimento privado de runtime unattended posteriormente descartado. O documento original não foi importado para o snapshot público e o ID não pode ser reutilizado.
+
+## Decisão em revisão
+
+| ADR | Decisão | Revisão decisória | Parecer técnico atual | Status | Aceite humano |
+| --- | --- | ---: | --- | --- | --- |
+| [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended | 1 | Pronto para aceite humano | `Proposed` | Pendente |
