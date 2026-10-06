@@ -5,13 +5,13 @@
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
 - **Status:** In Review
-- **Versão:** 0.4
+- **Versão:** 0.5
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-06
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012 rev.3
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.4
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 0.4 substitui a proposta pública 0.3 e incorpora hardening adicional exigido pela revisão de segurança: o Trusted Publisher passa a negar mudanças automáticas no control plane protegido, e PRs originados de fork ganham um caminho CODEX-01 base-trusted que usa somente workflow/prompt da `main`, lê o diff como dado não confiável e nunca executa código do fork. A versão experimental 0.1 permanece preservada apenas no histórico privado anterior e não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
+Esta versão 0.5 substitui a proposta pública 0.4 e elimina ambiguidades entre PRs same-repo e PRs de fork: remediação automática com geração/publicação de novo HEAD é requisito somente para PRs same-repo elegíveis; em forks, CI e CODEX-01 permanecem automáticos e read-only, enquanto qualquer novo HEAD após finding exige ação do autor ou responsável humano. Também alinha o rollout às versões materiais atuais da SDD e do ADR. A versão experimental 0.1 permanece preservada apenas no histórico privado anterior e não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
@@ -238,9 +238,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-001 | dois eventos simultâneos no mesmo PR | `concurrency` serializa; segunda execução reconcilia estado novo |
 | EDGE-002 | PR de fork | CI do fork roda read-only; CODEX-01 roda em workflow base-trusted da `main` lendo somente diff/API; remediação automática com escrita fica indisponível |
 | EDGE-003 | HEAD muda durante job | abortar mutação e reconciliar |
-| EDGE-004 | CI falha por causa corrigível | Codex Remediator recebe causa específica |
+| EDGE-004 | CI falha por causa corrigível em PR same-repo elegível | Codex Remediator recebe causa específica e pode produzir patch para novo HEAD |
 | EDGE-005 | CI falha por decisão material | `HUMAN_DECISION_REQUIRED` |
-| EDGE-006 | review encontra P0/P1/P2 corrigível | remediar e gerar novo HEAD |
+| EDGE-006 | review encontra P0/P1/P2 corrigível em PR same-repo elegível | remediar e gerar novo HEAD automaticamente; em fork aplica-se BR-024 |
 | EDGE-007 | terceiro fracasso da mesma causa | `LOOP_ESCALATION_REQUIRED` |
 | EDGE-008 | API OpenAI indisponível/sem saldo/secret ausente | `BLOCKED_EXTERNAL` |
 | EDGE-009 | push com `GITHUB_TOKEN` não gera novo workflow | Trusted Publisher solicita dispatch explícito ao dispatcher já presente na `main` |
@@ -295,10 +295,11 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - publicação em branch correta.
 
 ### E2E
-- CI verde → CODEX-01 → READY;
-- CI falha corrigível → remediação → novo HEAD → CI → review → READY;
-- finding corrigível → remediação → novo HEAD → CI → novo review;
-- fluxo sem interação humana operacional;
+- PR same-repo: CI verde → CODEX-01 → READY;
+- PR same-repo: CI falha corrigível → remediação → novo HEAD → CI → review → READY;
+- PR same-repo: finding corrigível → remediação → novo HEAD → CI → novo review;
+- PR de fork: CI read-only + CODEX-01 base-trusted → READY quando não houver finding; se houver finding, aguardar novo HEAD do autor/responsável humano e então repetir os gates automáticos;
+- fluxo same-repo saudável sem interação humana operacional até `READY_FOR_HUMAN_MERGE`;
 - autorização humana final sem merge automático indevido.
 
 ### Segurança / autorização / multi-tenancy
@@ -326,8 +327,8 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-003:** runtime é acionado/controlado pelo GitHub Actions.
 - **AC-004:** duas execuções concorrentes do mesmo PR não publicam duas remediações conflitantes.
 - **AC-005:** código/ambiente do fork não obtém `OPENAI_API_KEY` nem escrita privilegiada; o CODEX-01 base-trusted pode usar a chave apenas no contexto seguro da `main`, sem checkout/execução do fork.
-- **AC-006:** CI corrigível produz novo HEAD automaticamente.
-- **AC-007:** finding corrigível do CODEX-01 produz novo HEAD automaticamente.
+- **AC-006:** em PR same-repo elegível, CI corrigível produz novo HEAD automaticamente; em PR de fork, remediação com escrita é proibida e o novo HEAD depende do autor ou responsável humano conforme BR-024.
+- **AC-007:** em PR same-repo elegível, finding corrigível do CODEX-01 produz novo HEAD automaticamente; em PR de fork, o finding bloqueia READY até que o autor ou responsável humano publique novo HEAD, sem Trusted Publisher.
 - **AC-008:** cada novo HEAD passa novamente por CI e CODEX-01.
 - **AC-009:** mesma causa raiz não ultrapassa 3 tentativas automáticas.
 - **AC-010:** caminho saudável chega sozinho a `READY_FOR_HUMAN_MERGE`.
@@ -406,14 +407,15 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 | 0.2 | 2026-10-06 | Product & SDD | redesenho cloud-native com GitHub Actions + Codex |
 | 0.3 | 2026-10-06 | Product & SDD | separa geração de patch da publicação privilegiada e adiciona bootstrap do dispatcher antes do canary |
 | 0.4 | 2026-10-06 | Product & SDD | protege control plane contra patches automáticos e define CODEX-01 base-trusted para forks sem execução de código externo |
+| 0.5 | 2026-10-06 | Product & SDD | limita remediação automática a PRs same-repo e alinha critérios/rollout às versões atuais |
 
 ## 26. Aprovação
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Nova revisão pendente após hardening de control plane e forks
-- **Versão revisada:** Não aplicável à v0.4 até conclusão do novo ciclo
-- **Pendências bloqueantes:** validar denylist fail-closed do Publisher e CODEX-01 base-trusted para forks no novo ciclo de revisão
+- **Parecer de `review-sdd`:** Nova revisão pendente após alinhamento de critérios same-repo/fork
+- **Versão revisada:** Não aplicável à v0.5 até conclusão do novo ciclo
+- **Pendências bloqueantes:** validar coerência entre critérios de remediação automática same-repo e comportamento read-only de forks
 - **Pendências não bloqueantes:** definir modelo e hard budget de API antes do canary
 
 ### Gate humano

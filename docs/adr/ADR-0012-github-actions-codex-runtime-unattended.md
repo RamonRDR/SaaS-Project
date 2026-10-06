@@ -5,13 +5,13 @@
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
 - **Status:** Proposed
-- **Revisão decisória:** 3
+- **Revisão decisória:** 4
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-06
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v0.4
+- **SDDs relacionadas:** SDD-0001 v0.5
 - **ADRs relacionados:** ADR-0010; ADR-0011 histórico privado não importado
 - **PR / issue relacionada:** Issue #1
 
@@ -235,15 +235,15 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 ## 10. Migração e rollout
 
-1. aprovar SDD-0001 v0.3;
-2. aceitar ADR-0012 rev.2;
+1. aprovar explicitamente a SDD-0001 v0.5 após parecer técnico favorável para essa mesma versão;
+2. aceitar explicitamente o ADR-0012 rev.4 após parecer técnico favorável para essa mesma revisão;
 3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável, o Trusted Publisher mínimo com denylist fail-closed e o entrypoint base-trusted do CODEX-01 para forks; o Publisher não executa Codex nem usa `OPENAI_API_KEY`, e o reviewer de fork é proibido de fazer checkout/execução do HEAD externo;
 4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando os entrypoints confiáveis de dispatch e review de fork existentes na branch padrão;
 5. configurar projeto/API OpenAI, hard budget/alerts e adicionar `OPENAI_API_KEY` como secret;
 6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 same-repo no **PR do runtime**, mantendo publicação privilegiada e CODEX-01 de fork nos componentes base-trusted já bootstrapados;
 7. executar unit/integration/security tests;
 8. executar canary controlado pré-merge acionando o dispatcher já presente na `main` contra PR/HEAD same-repo elegível;
-9. no canary same-repo, cada remediação deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `fork HEAD → diff/API → CODEX-01 base-trusted → evidência vinculada ao SHA`, sem checkout/execução externa;
+9. no canary same-repo, cada remediação corrigível deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `fork HEAD → diff/API → CODEX-01 base-trusted → evidência vinculada ao SHA`, sem checkout/execução externa e sem remediação automática com escrita;
 10. obter autorização humana e fazer merge do PR do runtime;
 11. executar canary pós-merge do ciclo completo;
 12. somente então `DONE_ALLOWED`.
@@ -284,14 +284,16 @@ Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa 
 | 2026-10-06 | Product & SDD | Ajustes de segurança e rollout | Revisão decisória 2 proposta |
 | 2026-10-06 | Orchestrator / Tech Lead | Revisão técnica da rev.2 | Retornar para ajustes após achados P1 de control plane e forks |
 | 2026-10-06 | Product & SDD | Hardening de control plane e caminho seguro para forks | Revisão decisória 3 proposta |
+| 2026-10-06 | Orchestrator / Tech Lead | Revisão técnica da rev.3 | Retornar para ajustes após achados P1/P2 de versionamento e critérios same-repo/fork |
+| 2026-10-06 | Product & SDD | Alinhamento do rollout e dos critérios de remediação | Revisão decisória 4 proposta |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Nova revisão pendente após hardening de control plane e forks
-- **Revisão decisória revisada:** Não aplicável à rev.3 até conclusão do novo ciclo
+- **Parecer de `review-adr`:** Nova revisão pendente após alinhamento de rollout e critérios same-repo/fork
+- **Revisão decisória revisada:** Não aplicável à rev.4 até conclusão do novo ciclo
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-06
-- **Pendências bloqueantes:** validar denylist fail-closed do Publisher e reviewer CODEX-01 base-trusted para forks no novo ciclo de revisão
+- **Pendências bloqueantes:** validar que bootstrap só inicia após aprovação da SDD v0.5/ADR rev.4 e que remediação automática com escrita permanece restrita a PRs same-repo
 - **Pendências não bloqueantes:** definir modelo e hard budget antes do canary
 
 ## 17. Aceite humano
