@@ -225,6 +225,6 @@ O parecer técnico é válido somente para a revisão decisória 2.
 - **Responsável humano:** Responsável do projeto
 - **Data:** 2026-10-01
 - **Revisão decisória aceita:** 2
-- **Registro do aceite:** PR #9, comentário humano imutável [#5933524532](https://github.com/RamonRDR/SaaS-Project/pull/9#issuecomment-5933524532), publicado por `RamonRDR` em 2026-10-01.
+- **Registro do aceite:** aceite humano histórico registrado por `RamonRDR` em 2026-10-01; a evidência operacional original permanece no histórico privado anterior e não foi importada para este snapshot público.
 
 As condições de aceite foram satisfeitas para a revisão decisória 2; o ADR está `Accepted`.

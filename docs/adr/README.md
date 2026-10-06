@@ -80,7 +80,7 @@ O catálogo abaixo registra o estado atual de cada ADR individualmente. A fonte 
 
 Os 10 ADRs iniciais possuem parecer técnico favorável e aceite humano explicitamente registrado no próprio documento.
 
-**Evidência comum do gate humano:** PR #9, comentário [#5933524532](https://github.com/RamonRDR/SaaS-Project/pull/9#issuecomment-5933524532), publicado pela conta `RamonRDR` em 2026-10-01.
+**Evidência comum do gate humano:** os ADRs 0001–0010 foram migrados como baseline `Accepted`. O aceite humano histórico foi registrado por `RamonRDR` em 2026-10-01; a evidência operacional original permanece no histórico privado anterior e não foi importada para este snapshot público.
 
 Quando uma revisão decisória mudar, esta tabela deve ser atualizada no mesmo fluxo documental para não divergir dos ADRs.
 
