@@ -5,13 +5,13 @@
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
 - **Status:** In Review
-- **Versão:** 0.2
+- **Versão:** 0.3
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-06
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.2
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 0.2 substitui conceitualmente a versão experimental 0.1 preservada apenas no histórico privado anterior. A v0.1 não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
+Esta versão 0.3 substitui a proposta pública 0.2 e incorpora os ajustes exigidos pela revisão de segurança: separação entre geração de patch por IA e publicação Git privilegiada, além de rollout em duas etapas com bootstrap do dispatcher confiável na `main` antes do canary. A versão experimental 0.1 permanece preservada apenas no histórico privado anterior e não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
@@ -70,10 +70,12 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - estado auditável `ORCHESTRATOR_STATE_V2`;
 - serialização por PR com `concurrency`;
 - CI/gates atuais integrados ao fluxo;
-- Codex para remediação técnica corrigível;
+- Codex para gerar propostas de remediação em job sem credencial GitHub com escrita;
+- Trusted Publisher separado do processo Codex, responsável pela validação e publicação do patch;
 - CODEX-01 como review independente do HEAD exato;
-- publicação automática de commits apenas na branch elegível do PR;
-- reentrada explícita via `workflow_dispatch` ou `repository_dispatch`;
+- publicação automática de commits apenas na branch elegível do PR e somente pelo Trusted Publisher;
+- dispatcher confiável previamente instalado na `main` como etapa de bootstrap;
+- reentrada explícita via `workflow_dispatch` ou `repository_dispatch` atendida pelo dispatcher já presente na branch padrão;
 - secrets via GitHub Actions Secrets;
 - proteção específica para forks e conteúdo não confiável;
 - anti-loop por causa raiz;
@@ -97,8 +99,9 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 | --- | --- | --- |
 | Responsável humano | aprova decisões e merge | deixa de atuar como wake-up operacional |
 | GitHub Actions | executa runtime, CI e transições | passa a ser o motor unattended |
-| Codex Remediator | corrige causa raiz específica | pode alterar workspace em job controlado |
-| CODEX-01 | revisa HEAD exato | permanece independente da remediação |
+| Codex Remediator | gera patch para causa raiz específica | opera sem token GitHub com escrita e não publica commits |
+| Trusted Publisher | valida e publica patch aprovado pelo contrato | é o único job de remediação com `contents: write`; não executa Codex |
+| CODEX-01 | revisa HEAD exato | permanece independente da remediação e sem escrita |
 | Orchestrator / Tech Lead | define reducer, gates e contratos | coordena arquitetura e critérios |
 | GitHub | fonte de verdade | persiste PR, HEAD, runs, comentários e estado |
 
@@ -113,13 +116,16 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - **BR-007:** CODEX-01 só é válido para o HEAD exato revisado.
 - **BR-008:** Codex Remediator e CODEX-01 usam contextos/jobs separados.
 - **BR-009:** CODEX-01 não possui permissão para publicar código.
-- **BR-010:** remediação só pode publicar na branch corrente do PR elegível; nunca diretamente na `main`.
-- **BR-011:** a mesma causa raiz admite no máximo 3 tentativas automáticas antes de `LOOP_ESCALATION_REQUIRED`.
-- **BR-012:** ausência ou ambiguidade de evidência resulta em fail-closed.
-- **BR-013:** após publicar novo HEAD, o runtime inicia explicitamente o próximo ciclo por dispatch suportado, sem depender de recursão implícita de eventos gerados por `GITHUB_TOKEN`.
-- **BR-014:** `READY_FOR_HUMAN_MERGE` só é emitido com CI verde, CODEX-01 limpo e evidências do mesmo HEAD.
-- **BR-015:** merge principal exige autorização humana explícita vinculada ao PR/HEAD.
-- **BR-016:** PHASE-0-G permanece bloqueada até canary E2E e `DONE_ALLOWED`.
+- **BR-010:** o job que executa Codex Remediator não recebe token GitHub com `contents: write`; sua saída mutável é somente um patch/artefato estruturado associado ao PR e ao HEAD esperados.
+- **BR-011:** a publicação Git da remediação ocorre em job separado, sem execução de Codex, chamado Trusted Publisher; antes de qualquer push ele valida origem same-repo confiável, HEAD esperado, ref de destino, escopo do patch e invariantes do contrato.
+- **BR-012:** o Trusted Publisher só pode publicar na branch corrente do PR elegível; nunca diretamente na `main`.
+- **BR-013:** a mesma causa raiz admite no máximo 3 tentativas automáticas antes de `LOOP_ESCALATION_REQUIRED`.
+- **BR-014:** ausência ou ambiguidade de evidência resulta em fail-closed.
+- **BR-015:** após publicar novo HEAD, o runtime inicia explicitamente o próximo ciclo por dispatch suportado, sem depender de recursão implícita de eventos gerados por `GITHUB_TOKEN`.
+- **BR-016:** o workflow que recebe o dispatch de reentrada deve existir previamente na branch padrão. A implementação adota bootstrap em merge anterior ao canary para instalar esse dispatcher confiável na `main`.
+- **BR-017:** `READY_FOR_HUMAN_MERGE` só é emitido com CI verde, CODEX-01 limpo e evidências do mesmo HEAD.
+- **BR-018:** merge principal exige autorização humana explícita vinculada ao PR/HEAD.
+- **BR-019:** PHASE-0-G permanece bloqueada até canary E2E e `DONE_ALLOWED`.
 
 ## 8. Permissões e multi-tenancy
 
@@ -129,7 +135,8 @@ Permissões operacionais:
 
 - CI comum: `contents: read`;
 - CODEX-01: leitura do workspace e acesso à API OpenAI, sem `contents: write`;
-- remediação: escrita mínima necessária na branch do PR, somente após guardas de origem;
+- Codex Remediator: leitura do workspace + `OPENAI_API_KEY`, sem token GitHub com escrita; produz somente patch/artefato estruturado;
+- Trusted Publisher: `contents: write` mínimo, sem `OPENAI_API_KEY` e sem executar processo Codex; valida patch, HEAD e ref antes do push;
 - merge da `main`: fora do job unattended;
 - fork PR: sem secrets privilegiados e sem remediação automática.
 
@@ -186,7 +193,10 @@ Controles obrigatórios:
 - nenhuma execução privilegiada em fork;
 - evitar `pull_request_target` com checkout de código do PR;
 - tokens com menor permissão possível;
+- processo Codex de remediação sem credencial GitHub com escrita;
+- publicação em job confiável separado, sem Codex e sem chave OpenAI, com validação de patch, HEAD esperado e ref de destino;
 - commit/push limitado à branch do PR;
+- dispatcher de reentrada versionado na `main` antes do canary, evitando depender de workflow ainda inexistente na branch padrão;
 - `main` protegida por gate humano;
 - outputs de IA validados antes de virarem decisão/mutação;
 - logs não podem incluir payload sensível da API.
@@ -221,12 +231,15 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-006 | review encontra P0/P1/P2 corrigível | remediar e gerar novo HEAD |
 | EDGE-007 | terceiro fracasso da mesma causa | `LOOP_ESCALATION_REQUIRED` |
 | EDGE-008 | API OpenAI indisponível/sem saldo/secret ausente | `BLOCKED_EXTERNAL` |
-| EDGE-009 | push com `GITHUB_TOKEN` não gera novo workflow | dispatch explícito inicia próxima execução |
-| EDGE-010 | review pertence a HEAD antigo | ignorar e pedir/reexecutar review |
-| EDGE-011 | output Codex inválido ao schema | fail-closed |
-| EDGE-012 | tentativa de escrever `main` | negar |
-| EDGE-013 | workflow de origem não confiável tenta acessar secret | negar antes do step privilegiado |
-| EDGE-014 | autorização humana para HEAD antigo | invalidar |
+| EDGE-009 | push com `GITHUB_TOKEN` não gera novo workflow | Trusted Publisher solicita dispatch explícito ao dispatcher já presente na `main` |
+| EDGE-010 | dispatcher ainda não existe na branch padrão | canary fica bloqueado; concluir bootstrap primeiro |
+| EDGE-011 | review pertence a HEAD antigo | ignorar e pedir/reexecutar review |
+| EDGE-012 | output Codex inválido ao schema | fail-closed |
+| EDGE-013 | Codex tenta publicar diretamente | negar; job Codex não possui escrita Git |
+| EDGE-014 | patch diverge do HEAD/ref esperados | Trusted Publisher aborta sem push e força reconciliação |
+| EDGE-015 | tentativa de escrever `main` | negar |
+| EDGE-016 | workflow de origem não confiável tenta acessar secret | negar antes do step privilegiado |
+| EDGE-017 | autorização humana para HEAD antigo | invalidar |
 
 ## 16. Migration
 
@@ -257,7 +270,10 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - eventos duplicados;
 - concurrency por PR;
 - stale HEAD;
-- dispatch explícito;
+- dispatch explícito atendido por workflow previamente existente na `main`;
+- bootstrap do dispatcher antes do canary;
+- handoff Codex Remediator → patch estruturado → Trusted Publisher;
+- validação de HEAD/ref antes do push;
 - schema de output do reviewer;
 - publicação em branch correta.
 
@@ -271,7 +287,10 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 ### Segurança / autorização / multi-tenancy
 - fork não recebe secret;
 - PR text com prompt injection não altera contrato;
-- remediator não escreve `main`;
+- job Codex Remediator não possui token GitHub com escrita;
+- Trusted Publisher não recebe `OPENAI_API_KEY` e não executa Codex;
+- patch com HEAD/ref divergente não é publicado;
+- remediação não escreve `main`;
 - reviewer não publica código;
 - logs não expõem chave.
 
@@ -293,8 +312,10 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-009:** mesma causa raiz não ultrapassa 3 tentativas automáticas.
 - **AC-010:** caminho saudável chega sozinho a `READY_FOR_HUMAN_MERGE`.
 - **AC-011:** `main` não é mergeada sem autorização humana explícita para PR/HEAD exatos.
-- **AC-012:** um canary pós-merge comprova o ciclo completo antes de `DONE_ALLOWED`.
-- **AC-013:** PHASE-0-G permanece planejada até AC-012.
+- **AC-012:** o dispatcher necessário à reentrada está previamente instalado na `main` por um bootstrap aprovado antes do canary do runtime.
+- **AC-013:** o processo Codex que gera remediação não possui credencial GitHub com escrita; somente o Trusted Publisher separado pode publicar após validar patch, HEAD e ref.
+- **AC-014:** um canary pós-merge comprova o ciclo completo antes de `DONE_ALLOWED`.
+- **AC-015:** PHASE-0-G permanece planejada até AC-014.
 
 ## 20. Evidências de validação esperadas
 
@@ -314,6 +335,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - repositório GitHub público;
 - standard GitHub-hosted runners;
 - GitHub Actions;
+- dispatcher/Trusted Publisher de bootstrap presentes na `main` antes do canary do runtime;
 - GitHub Actions Secret `OPENAI_API_KEY`;
 - conta/projeto OpenAI API com billing habilitado;
 - Codex Action/CLI/SDK suportado para CI;
@@ -327,6 +349,8 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | custo inesperado de API | gasto financeiro | limite de tentativas, projeto dedicado, hard budget/alerts antes do canary |
 | abuso por fork/PR externo | consumo de API ou escrita indevida | secrets somente para origem confiável |
 | prompt injection | alteração indevida | contrato versionado + outputs estruturados + fail-closed |
+| processo Codex obtém capacidade de escrita | push indevido | job de geração sem escrita + Trusted Publisher separado e validado |
+| dispatcher ausente da branch padrão | reentrada não ocorre no primeiro rollout | bootstrap do dispatcher na `main` antes do canary |
 | corrida entre eventos | commits conflitantes | `concurrency` + reconciliação de HEAD |
 | loop de remediação | custo/instabilidade | 3 tentativas por causa raiz |
 | indisponibilidade OpenAI | fluxo interrompido | `BLOCKED_EXTERNAL` + fallback interativo |
@@ -356,14 +380,15 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 | --- | --- | --- | --- |
 | 0.1 | 2026-10-04 | Product & SDD | versão experimental privada, não importada ao Git público |
 | 0.2 | 2026-10-06 | Product & SDD | redesenho cloud-native com GitHub Actions + Codex |
+| 0.3 | 2026-10-06 | Product & SDD | separa geração de patch da publicação privilegiada e adiciona bootstrap do dispatcher antes do canary |
 
 ## 26. Aprovação
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Pronta para aprovação
-- **Versão revisada:** 0.2
-- **Pendências bloqueantes:** Nenhuma
+- **Parecer de `review-sdd`:** Nova revisão pendente após ajustes de segurança e rollout
+- **Versão revisada:** Não aplicável à v0.3 até conclusão do novo ciclo
+- **Pendências bloqueantes:** validar separação de privilégios e bootstrap/reentrada no novo ciclo de revisão
 - **Pendências não bloqueantes:** definir modelo e hard budget de API antes do canary
 
 ### Gate humano

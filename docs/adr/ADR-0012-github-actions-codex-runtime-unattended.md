@@ -5,13 +5,13 @@
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
 - **Status:** Proposed
-- **Revisão decisória:** 1
+- **Revisão decisória:** 2
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-06
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v0.2
+- **SDDs relacionadas:** SDD-0001 v0.3
 - **ADRs relacionados:** ADR-0010; ADR-0011 histórico privado não importado
 - **PR / issue relacionada:** Issue #1
 
@@ -89,7 +89,7 @@ Eventos do GitHub acordam um runtime externo, que reconcilia o estado e executa 
 
 **Descrição**
 
-GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para remediação e review.
+GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`.
 
 **Vantagens**
 - eventos, concurrency, permissions e runners no mesmo sistema;
@@ -155,7 +155,7 @@ Fluxo continua dependente da conversa ativa.
 ## 5. Opção recomendada
 
 - **Opção:** B — GitHub Actions + Codex
-- **Justificativa:** concentra o critical path no sistema que já controla PR, HEAD, eventos, permissions e CI; oferece mecanismos nativos de concurrency e dispatch; remove a dependência de wake-up externo; mantém o computador local fora do runtime; e permite separar Codex Remediator de CODEX-01 com permissões distintas.
+- **Justificativa:** concentra o critical path no sistema que já controla PR, HEAD, eventos, permissions e CI; oferece mecanismos nativos de concurrency e dispatch; remove a dependência de wake-up externo; mantém o computador local fora do runtime; separa Codex Remediator de CODEX-01; e impede que o processo Codex de remediação detenha credencial GitHub com escrita ao delegar a publicação a um Trusted Publisher independente.
 
 Esta seção registra recomendação, não aceite.
 
@@ -182,7 +182,9 @@ Esta seção registra recomendação, não aceite.
 - configurar hard budget/alerts antes do canary;
 - pin de Actions por SHA;
 - revisar segurança de cada workflow privilegiado;
-- testar concurrency e recursion;
+- manter geração de patch e publicação Git em jobs distintos, sem compartilhamento de credenciais privilegiadas;
+- instalar o dispatcher confiável na `main` em um bootstrap anterior ao canary do runtime;
+- testar concurrency, dispatch e reentrada;
 - documentar mudanças de modelo/custo.
 
 ## 7. Impacto em segurança e multi-tenancy
@@ -193,9 +195,11 @@ Segurança operacional:
 
 - `OPENAI_API_KEY` em GitHub Actions Secrets;
 - nenhum secret em forks;
-- jobs de IA privilegiados exigem PR same-repo e guards de provenance;
+- jobs de IA com `OPENAI_API_KEY` exigem PR same-repo e guards de provenance;
 - CODEX-01 sem permissão de escrita;
-- remediator só escreve branch do PR;
+- Codex Remediator sem token GitHub com `contents: write`; ele produz somente patch/artefato estruturado;
+- Trusted Publisher separado, sem `OPENAI_API_KEY` e sem execução de Codex, é o único componente de remediação autorizado a `contents: write`;
+- antes do push, o Trusted Publisher valida same-repo confiável, HEAD esperado, ref de destino, escopo do patch e invariantes do contrato;
 - `main` fora da autoridade unattended;
 - conteúdo do PR é untrusted input;
 - não usar `pull_request_target` para executar código não confiável com secrets;
@@ -225,16 +229,18 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 ## 10. Migração e rollout
 
-1. aprovar SDD-0001 v0.2;
-2. aceitar ADR-0012;
-3. configurar projeto/API OpenAI e budget;
-4. adicionar secret ao GitHub;
-5. implementar reducer V2 e workflows em PR único;
-6. executar unit/integration/security tests;
-7. canary controlado antes do merge;
-8. autorização humana do merge;
-9. canary pós-merge;
-10. somente então `DONE_ALLOWED`.
+1. aprovar SDD-0001 v0.3;
+2. aceitar ADR-0012 rev.2;
+3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável e o Trusted Publisher mínimo; esse bootstrap não executa Codex, não usa `OPENAI_API_KEY` e não habilita merge automático;
+4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando o entrypoint de `workflow_dispatch`/`repository_dispatch` existente na branch padrão;
+5. configurar projeto/API OpenAI, hard budget/alerts e adicionar `OPENAI_API_KEY` como secret;
+6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 no **PR do runtime**, mantendo a publicação privilegiada no componente confiável já bootstrapado;
+7. executar unit/integration/security tests;
+8. executar canary controlado pré-merge acionando o dispatcher já presente na `main` contra PR/HEAD same-repo elegível;
+9. no canary, cada remediação deve seguir `Codex sem escrita → patch estruturado → Trusted Publisher → novo HEAD → dispatch explícito`;
+10. obter autorização humana e fazer merge do PR do runtime;
+11. executar canary pós-merge do ciclo completo;
+12. somente então `DONE_ALLOWED`.
 
 ## 11. Rollback / reversibilidade
 
@@ -268,15 +274,16 @@ Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa 
 | Data | Responsável | Ação | Resultado |
 | --- | --- | --- | --- |
 | 2026-10-06 | Product & SDD | Proposta inicial | Proposed |
-| 2026-10-06 | Orchestrator / Tech Lead | Revisão técnica | Pronto para aceite humano |
+| 2026-10-06 | Orchestrator / Tech Lead | Revisão técnica da rev.1 | Retornar para ajustes após achados P1 de privilégio e bootstrap |
+| 2026-10-06 | Product & SDD | Ajustes de segurança e rollout | Revisão decisória 2 proposta |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Pronto para aceite humano
-- **Revisão decisória revisada:** 1
+- **Parecer de `review-adr`:** Nova revisão pendente após ajustes materiais
+- **Revisão decisória revisada:** Não aplicável à rev.2 até conclusão do novo ciclo
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-06
-- **Pendências bloqueantes:** Nenhuma
+- **Pendências bloqueantes:** validar separação Codex/Trusted Publisher e rollout de bootstrap no novo ciclo de revisão
 - **Pendências não bloqueantes:** definir modelo e hard budget antes do canary
 
 ## 17. Aceite humano
