@@ -5,13 +5,13 @@
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
 - **Status:** In Review
-- **Versão:** 0.5
+- **Versão:** 0.6
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-06
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012 rev.4
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.5
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 0.5 substitui a proposta pública 0.4 e elimina ambiguidades entre PRs same-repo e PRs de fork: remediação automática com geração/publicação de novo HEAD é requisito somente para PRs same-repo elegíveis; em forks, CI e CODEX-01 permanecem automáticos e read-only, enquanto qualquer novo HEAD após finding exige ação do autor ou responsável humano. Também alinha o rollout às versões materiais atuais da SDD e do ADR. A versão experimental 0.1 permanece preservada apenas no histórico privado anterior e não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
+Esta versão 0.6 substitui a proposta pública 0.5 e endurece o caminho de review para forks: o CODEX-01 externo deixa de usar execução agentiva e passa a operar por um broker determinístico, tool-less e base-trusted da `main`, que envia somente diff/metadados normalizados ao modelo. Também introduz trust gate, idempotência e quotas por PR/autor antes de qualquer chamada paga, preservando disponibilidade e budget diante de abuso. A versão experimental 0.1 permanece preservada apenas no histórico privado anterior e não foi importada para o Git público sanitizado por depender de uma arquitetura descartada e de evidências operacionais privadas.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
@@ -74,7 +74,8 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - Trusted Publisher separado do processo Codex, responsável pela validação e publicação do patch;
 - denylist obrigatória do control plane protegido antes de qualquer publicação automática;
 - CODEX-01 como review independente do HEAD exato;
-- CODEX-01 base-trusted para forks, executado a partir da `main` sem checkout nem execução do código externo;
+- CODEX-01 base-trusted para forks, executado por broker determinístico e tool-less da `main`, sem checkout, execução do código externo ou ferramentas agentivas;
+- trust gate + quotas/idempotência antes de qualquer chamada paga disparada por fork;
 - publicação automática de commits apenas na branch elegível do PR same-repo e somente pelo Trusted Publisher;
 - dispatcher confiável previamente instalado na `main` como etapa de bootstrap;
 - reentrada explícita via `workflow_dispatch` ou `repository_dispatch` atendida pelo dispatcher já presente na branch padrão;
@@ -105,7 +106,7 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 | Codex Remediator | gera patch para causa raiz específica | opera sem token GitHub com escrita e não publica commits |
 | Trusted Publisher | valida e publica patch aprovado pelo contrato | é o único job de remediação same-repo com `contents: write`; não executa Codex e rejeita control plane protegido |
 | CODEX-01 same-repo | revisa HEAD exato | permanece independente da remediação e sem `contents: write` |
-| CODEX-01 fork base-trusted | revisa diff do HEAD externo como dado | executa workflow/prompt da `main`, sem checkout/execução do fork e sem `contents: write` |
+| CODEX-01 fork base-trusted | revisa diff do HEAD externo como dado | usa broker determinístico/tool-less da `main`; o modelo não recebe shell, filesystem, tools/functions ou `contents: write` |
 | Orchestrator / Tech Lead | define reducer, gates e contratos | coordena arquitetura e critérios |
 | GitHub | fonte de verdade | persiste PR, HEAD, runs, comentários e estado |
 
@@ -135,6 +136,11 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - **BR-022:** para PR de fork, CODEX-01 executa em contexto base-trusted a partir da branch padrão, usando somente workflow, prompt, schema e tooling da `main`; obtém metadados e diff pela API do GitHub, trata-os como dados não confiáveis, não faz checkout do HEAD do fork e não executa nenhum arquivo do PR.
 - **BR-023:** a evidência CODEX-01 de fork deve registrar o `head.sha` exato. Se o HEAD mudar durante ou após o review, a evidência é stale e deve ser descartada antes de READY.
 - **BR-024:** findings em fork não acionam Trusted Publisher nem remediação automática com escrita; o autor ou responsável humano produz novo HEAD e o fluxo reexecuta CI read-only e CODEX-01 base-trusted.
+- **BR-025:** CODEX-01 de fork não usa Codex Action/CLI em modo agentivo. Um broker confiável versionado na `main` obtém o diff/metadados pela API, normaliza o payload e chama a API OpenAI sem disponibilizar ao modelo shell, filesystem, comandos, tools/functions, subprocessos ou acesso ao ambiente do runner. Conteúdo não confiável nunca é interpolado em comando de shell; trafega apenas por JSON/stdin/HTTP como dado.
+- **BR-026:** o processo confiável que contém `OPENAI_API_KEY` para review de fork executa somente código da `main`, com menor privilégio possível, sem `sudo`/elevação e sem executar artefatos do fork. O segredo nunca é incluído no prompt, output, artifact ou log. Qualquer configuração que habilite ferramentas agentivas para esse reviewer é fail-closed.
+- **BR-027:** antes de uma chamada paga para fork, o runtime aplica trust gate. Autorização automática é restrita a `OWNER`, `MEMBER` ou `COLLABORATOR`; qualquer outro `author_association` exige aprovação explícita de maintainer vinculada ao PR antes da primeira chamada paga.
+- **BR-028:** reviews pagos de fork são idempotentes por `head.sha`: no máximo uma chamada CODEX-01 por SHA. Além disso, o baseline limita a 3 chamadas pagas por PR em janela móvel de 24h e 5 chamadas pagas por autor externo em janela móvel de 24h no repositório. A contabilização usa evidência auditável publicada por identidade confiável do runtime.
+- **BR-029:** trust gate ausente ou quota excedida bloqueia a chamada antes de consumir a API e produz `HUMAN_DECISION_REQUIRED`; eventual override humano deve ser explícito, auditável e vinculado ao PR/HEAD específico, sem desabilitar permanentemente as quotas.
 
 ## 8. Permissões e multi-tenancy
 
@@ -144,7 +150,7 @@ Permissões operacionais:
 
 - CI comum: `contents: read`;
 - CODEX-01 same-repo: leitura do workspace e acesso à API OpenAI, sem `contents: write`;
-- CODEX-01 fork base-trusted: `contents: read`, leitura de metadados/diff e acesso à API OpenAI; pode registrar evidência de review no PR, mas não possui `contents: write`, não faz checkout do fork e não executa conteúdo do PR;
+- CODEX-01 fork base-trusted: broker determinístico da `main` com `contents: read`, leitura de metadados/diff e acesso à API OpenAI; pode registrar evidência de review no PR, mas não possui `contents: write`, não usa agente com ferramentas, não faz checkout do fork e não executa conteúdo do PR;
 - Codex Remediator: leitura do workspace + `OPENAI_API_KEY`, sem token GitHub com escrita; produz somente patch/artefato estruturado;
 - Trusted Publisher: `contents: write` mínimo, sem `OPENAI_API_KEY` e sem executar processo Codex; valida patch, HEAD, ref e denylist de control plane antes do push;
 - merge da `main`: fora do job unattended;
@@ -203,6 +209,9 @@ Controles obrigatórios:
 - nenhum código do fork é executado em contexto privilegiado;
 - `pull_request_target`, quando usado para CODEX-01 de fork, fica restrito a workflow da base e é proibido de fazer checkout, importar action/script/configuração do HEAD ou interpolar conteúdo não confiável em shell;
 - o diff de fork é obtido por API e tratado exclusivamente como dado não confiável vinculado ao `head.sha`;
+- o reviewer de fork usa integração OpenAI tool-less: nenhum shell, filesystem, tool/function call, subprocesso ou ambiente do runner é exposto ao modelo;
+- o broker que possui `OPENAI_API_KEY` executa somente código confiável da `main`, sem sudo/elevação e com o segredo fora de prompt, stdout/stderr e artifacts;
+- trust gate, deduplicação por HEAD e quotas por PR/autor são avaliados antes da chamada paga;
 - tokens com menor permissão possível;
 - processo Codex de remediação sem credencial GitHub com escrita;
 - publicação em job confiável separado, sem Codex e sem chave OpenAI, com validação de patch, HEAD esperado, ref de destino e denylist do control plane;
@@ -254,7 +263,11 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-017 | autorização humana para HEAD antigo | invalidar |
 | EDGE-018 | patch de remediação toca control plane protegido | rejeitar patch inteiro antes da escrita e emitir `HUMAN_DECISION_REQUIRED` |
 | EDGE-019 | fork tenta influenciar workflow/prompt do reviewer | ignorar versão do fork; carregar workflow/prompt/schema exclusivamente da `main` |
-| EDGE-020 | HEAD do fork muda durante CODEX-01 | descartar evidência stale e revisar o novo SHA |
+| EDGE-020 | HEAD do fork muda durante CODEX-01 | descartar evidência stale e revisar o novo SHA somente após novo trust/quota check |
+| EDGE-021 | diff de fork tenta instruir leitura de env, `/proc`, shell ou filesystem | modelo não possui ferramentas; broker trata texto como dado e nenhum secret é retornado/logado |
+| EDGE-022 | mesmo `head.sha` de fork dispara eventos repetidos | reutilizar evidência existente; nenhuma nova chamada paga |
+| EDGE-023 | fork sem trust gate | não chamar OpenAI; emitir `HUMAN_DECISION_REQUIRED` |
+| EDGE-024 | 4ª chamada do mesmo PR em 24h ou 6ª do mesmo autor externo em 24h | bloquear antes da API e emitir `HUMAN_DECISION_REQUIRED` |
 
 ## 16. Migration
 
@@ -290,7 +303,10 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - handoff Codex Remediator → patch estruturado → Trusted Publisher;
 - validação de HEAD/ref e denylist de control plane antes do push;
 - rejeição atômica de patch misto que contenha ao menos um path protegido;
-- CODEX-01 de fork carregado da `main`, sem checkout do fork e vinculado ao `head.sha` exato;
+- CODEX-01 de fork carregado da `main`, tool-less, sem checkout do fork e vinculado ao `head.sha` exato;
+- trust gate antes da API para autor externo;
+- idempotência de review por `head.sha`;
+- quotas de fork por PR/autor e bloqueio antes de chamada paga;
 - schema de output do reviewer;
 - publicação em branch correta.
 
@@ -311,6 +327,11 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - patch que altere qualquer path protegido do control plane não é publicado, mesmo quando misturado a arquivos permitidos;
 - PR de fork não consegue fornecer workflow, prompt, action ou script executável ao CODEX-01 privilegiado;
 - CODEX-01 de fork recebe apenas diff/metadados como dados e nunca faz checkout do HEAD externo;
+- teste negativo injeta no diff instruções para ler `OPENAI_API_KEY`, `env`, `/proc/*/environ`, executar shell e imprimir secrets; o reviewer não dispõe de tools e a evidência/log não contém o sentinel secret;
+- teste negativo prova que conteúdo do diff com metacaracteres de shell não é interpolado em comandos;
+- teste prova que autor externo sem trust gate não gera chamada OpenAI;
+- teste prova que eventos duplicados do mesmo HEAD não geram segunda cobrança;
+- testes de quota bloqueiam a 4ª chamada do PR e a 6ª chamada do autor externo na janela de 24h antes da API;
 - remediação não escreve `main`;
 - reviewer não publica código;
 - logs não expõem chave.
@@ -338,8 +359,12 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-014:** um canary pós-merge comprova o ciclo completo antes de `DONE_ALLOWED`.
 - **AC-015:** PHASE-0-G permanece planejada até AC-014.
 - **AC-016:** Trusted Publisher rejeita integralmente qualquer patch automático que toque o control plane protegido e escala para `HUMAN_DECISION_REQUIRED` antes de qualquer push.
-- **AC-017:** PR de fork consegue produzir CODEX-01 válido para o HEAD exato por workflow base-trusted da `main`, sem checkout nem execução de código do fork e sem `contents: write`.
-- **AC-018:** novo HEAD de fork invalida automaticamente a evidência CODEX-01 anterior.
+- **AC-017:** PR de fork consegue produzir CODEX-01 válido para o HEAD exato por workflow base-trusted da `main`, via broker tool-less, sem checkout/execução de código do fork, sem ferramentas agentivas e sem `contents: write`.
+- **AC-018:** novo HEAD de fork invalida automaticamente a evidência CODEX-01 anterior e exige nova avaliação de trust/quota antes de eventual nova chamada paga.
+- **AC-019:** prompt injection no diff não consegue acessar `OPENAI_API_KEY`, variáveis de ambiente, `/proc`, filesystem ou shell porque o modelo de fork não recebe ferramentas; teste negativo com sentinel secret deve passar sem vazamento em output/log/artifact.
+- **AC-020:** autor de fork fora de `OWNER`/`MEMBER`/`COLLABORATOR` não consome API antes de aprovação explícita de maintainer.
+- **AC-021:** o mesmo `head.sha` de fork gera no máximo uma chamada paga de CODEX-01.
+- **AC-022:** o baseline bloqueia antes da API a 4ª chamada paga do mesmo PR em 24h e a 6ª do mesmo autor externo em 24h, salvo override humano explícito e vinculado ao HEAD.
 
 ## 20. Evidências de validação esperadas
 
@@ -371,7 +396,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | Risco | Impacto | Mitigação |
 | --- | --- | --- |
 | custo inesperado de API | gasto financeiro | limite de tentativas, projeto dedicado, hard budget/alerts antes do canary |
-| abuso por fork/PR externo | consumo de API ou escrita indevida | CODEX-01 base-trusted sem checkout/execução do fork, limites de API e nenhuma escrita de contents |
+| abuso por fork/PR externo | consumo de API, indisponibilidade do gate ou tentativa de exfiltração | reviewer tool-less + trust gate + idempotência por SHA + quotas por PR/autor + hard budget global + nenhuma escrita de contents |
 | prompt injection | alteração indevida | contrato versionado + outputs estruturados + fail-closed |
 | patch de IA altera o próprio control plane | bypass de gates ou persistência maliciosa | denylist fail-closed de paths protegidos + `HUMAN_DECISION_REQUIRED` antes da escrita |
 | processo Codex obtém capacidade de escrita | push indevido | job de geração sem escrita + Trusted Publisher separado e validado |
@@ -408,14 +433,15 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 | 0.3 | 2026-10-06 | Product & SDD | separa geração de patch da publicação privilegiada e adiciona bootstrap do dispatcher antes do canary |
 | 0.4 | 2026-10-06 | Product & SDD | protege control plane contra patches automáticos e define CODEX-01 base-trusted para forks sem execução de código externo |
 | 0.5 | 2026-10-06 | Product & SDD | limita remediação automática a PRs same-repo e alinha critérios/rollout às versões atuais |
+| 0.6 | 2026-10-06 | Product & SDD | torna review de fork tool-less e adiciona trust gate, idempotência e quotas antes de chamadas pagas |
 
 ## 26. Aprovação
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Nova revisão pendente após alinhamento de critérios same-repo/fork
-- **Versão revisada:** Não aplicável à v0.5 até conclusão do novo ciclo
-- **Pendências bloqueantes:** validar coerência entre critérios de remediação automática same-repo e comportamento read-only de forks
+- **Parecer de `review-sdd`:** Nova revisão pendente após hardening de segredo e custo para forks
+- **Versão revisada:** Não aplicável à v0.6 até conclusão do novo ciclo
+- **Pendências bloqueantes:** validar isolamento tool-less do reviewer de fork, teste negativo de exfiltração e trust/quota gate antes da API
 - **Pendências não bloqueantes:** definir modelo e hard budget de API antes do canary
 
 ### Gate humano
