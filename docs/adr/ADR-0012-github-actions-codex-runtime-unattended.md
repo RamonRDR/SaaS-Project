@@ -4,14 +4,14 @@
 
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
-- **Status:** Accepted
-- **Revisão decisória:** 7
+- **Status:** Proposed
+- **Revisão decisória:** 8
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-07
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v0.8
+- **SDDs relacionadas:** SDD-0001 v0.9
 - **ADRs relacionados:** ADR-0010; ADR-0011 histórico privado não importado
 - **PR / issue relacionada:** Issue #1
 
