@@ -4,7 +4,7 @@
 
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
-- **Status:** In Review
+- **Status:** Approved
 - **Versão:** 0.8
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
@@ -470,15 +470,16 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Nova revisão pendente após fila durável para reviews de fork
-- **Versão revisada:** Não aplicável à v0.8 até conclusão do novo ciclo
-- **Pendências bloqueantes:** validar persistência antes do wake-up, drainer/reconciler sem perda por coalescência e reserva antes da API
+- **Parecer de `review-sdd`:** Pronta para aprovação
+- **Versão revisada:** 0.8
+- **Evidência técnica:** CODEX-01 clean no HEAD `85a7541646ce22c5d9a2784c8a6623e42675890a` e Governance Gates #9 com sucesso
+- **Pendências bloqueantes:** Nenhuma
 - **Pendências não bloqueantes:** definir modelo e hard budget de API antes do canary
 
 ### Gate humano
 
-- **Aprovada:** Não
-- **Versão aprovada:** Não aplicável
+- **Aprovada:** Sim
+- **Versão aprovada:** 0.8
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Não aplicável
-- **Registro da aprovação:** Não aplicável
+- **Data:** 2026-10-07
+- **Registro da aprovação:** PR #2, comentário #6043168597 (`HUMAN_APPROVAL`)

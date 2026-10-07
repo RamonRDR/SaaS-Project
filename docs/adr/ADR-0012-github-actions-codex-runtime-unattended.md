@@ -4,7 +4,7 @@
 
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
-- **Status:** Proposed
+- **Status:** Accepted
 - **Revisão decisória:** 7
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-07
@@ -305,17 +305,18 @@ Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa 
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Nova revisão pendente após fila durável de reviews de fork
-- **Revisão decisória revisada:** Não aplicável à rev.7 até conclusão do novo ciclo
+- **Parecer de `review-adr`:** Pronto para aceite humano
+- **Revisão decisória revisada:** 7
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-07
-- **Pendências bloqueantes:** validar persistência `PENDING` antes do wake-up, drainer/reconciler resistente a coalescência e reserva durável antes da API
+- **Evidência técnica:** CODEX-01 clean no HEAD `85a7541646ce22c5d9a2784c8a6623e42675890a` e Governance Gates #9 com sucesso
+- **Pendências bloqueantes:** Nenhuma
 - **Pendências não bloqueantes:** definir modelo e hard budget antes do canary
 
 ## 17. Aceite humano
 
-- **Aceito:** Não
+- **Aceito:** Sim
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Não aplicável
-- **Revisão decisória aceita:** Não aplicável
-- **Registro do aceite:** Não aplicável
+- **Data:** 2026-10-07
+- **Revisão decisória aceita:** 7
+- **Registro do aceite:** PR #2, comentário #6043168597 (`HUMAN_APPROVAL`)
