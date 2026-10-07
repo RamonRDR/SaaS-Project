@@ -302,21 +302,25 @@ Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa 
 | 2026-10-07 | Product & SDD | Quota Broker com reserva atômica cross-PR e ledger durável | Revisão decisória 6 proposta |
 | 2026-10-07 | Orchestrator / Tech Lead | Revisão técnica da rev.6 | Retornar para ajustes após P2 sobre perda de execuções pendentes em `concurrency` |
 | 2026-10-07 | Product & SDD | Fila durável + drainer/reconciler idempotente | Revisão decisória 7 proposta |
+| 2026-10-07 | Ramon Rodriguez | Aceite humano da rev.7 | Accepted no comentário #6043168597 |
+| 2026-10-07 | Orchestrator / Tech Lead | Review pós-formalização da rev.7 | Retornar para ajustes após P1 de completude do payload e consumo atômico da reserva |
+| 2026-10-07 | Product & SDD | Completude por Git Trees/Blobs + claim exclusivo de consumo | Revisão decisória 8 proposta |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Pronto para aceite humano
-- **Revisão decisória revisada:** 7
+- **Parecer de `review-adr`:** Nova revisão pendente após P1 de completude e consumo exclusivo
+- **Revisão decisória revisada:** Não aplicável à rev.8 até conclusão do novo ciclo
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-07
-- **Evidência técnica:** CODEX-01 clean no HEAD `85a7541646ce22c5d9a2784c8a6623e42675890a` e Governance Gates #9 com sucesso
-- **Pendências bloqueantes:** Nenhuma
+- **Evidência anterior:** rev.7 foi aceita humanamente, mas o review do HEAD de formalização encontrou dois P1 materiais
+- **Pendências bloqueantes:** validar payload integral e consumo exclusivo antes da chamada paga
 - **Pendências não bloqueantes:** definir modelo e hard budget antes do canary
 
 ## 17. Aceite humano
 
-- **Aceito:** Sim
+- **Aceito:** Não para a revisão atual
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** 2026-10-07
-- **Revisão decisória aceita:** 7
-- **Registro do aceite:** PR #2, comentário #6043168597 (`HUMAN_APPROVAL`)
+- **Data:** Não aplicável à rev.8
+- **Revisão decisória aceita:** Não aplicável à rev.8
+- **Registro do aceite atual:** Pendente
+- **Aceite histórico preservado:** rev.7, PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); invalidado para rev.8 por mudança material
