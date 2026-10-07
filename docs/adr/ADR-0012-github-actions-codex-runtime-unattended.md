@@ -251,7 +251,7 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 1. aprovar explicitamente a SDD-0001 v0.9 após parecer técnico favorável para essa mesma versão;
 2. aceitar explicitamente o ADR-0012 rev.8 após parecer técnico favorável para essa mesma revisão;
-3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável, o Trusted Publisher mínimo com denylist fail-closed, o broker base-trusted/tool-less do CODEX-01 para forks, a fila/ledger GitHub dedicada, o Quota Broker/drainer e o reconciler periódico; cada pedido persiste `PENDING` antes do wake-up e cada consumo persiste `RESERVED` antes da API; o Publisher não executa Codex nem usa `OPENAI_API_KEY`;
+3. implementar e revisar um **PR de bootstrap** contendo dispatcher, Trusted Publisher, broker tool-less de forks, fila/ledger, Quota Broker/drainer e reconciler; cada pedido persiste `PENDING`, cada slot persiste `RESERVED`, somente um claim atômico `CONSUMED` vinculado a `consumer_run_id` libera a chamada, e o broker prova o payload completo por Git Trees/Blobs antes do review;
 4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando os entrypoints confiáveis de dispatch e review de fork existentes na branch padrão;
 5. configurar projeto/API OpenAI, hard budget/alerts e adicionar `OPENAI_API_KEY` como secret;
 6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 same-repo no **PR do runtime**, mantendo publicação privilegiada e CODEX-01 de fork nos componentes base-trusted já bootstrapados;
