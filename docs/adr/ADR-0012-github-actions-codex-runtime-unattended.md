@@ -89,7 +89,7 @@ Eventos do GitHub acordam um runtime externo, que reconcilia o estado e executa 
 
 **Descrição**
 
-GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`, que também aplica denylist fail-closed ao control plane. PRs de fork usam CODEX-01 base-trusted carregado exclusivamente da `main`, por broker determinístico/tool-less que envia apenas diff/metadados ao modelo, sem shell/tools. Cada solicitação é persistida primeiro em fila/ledger GitHub durável; um Quota Broker/drainer reconciliador consome o backlog e só chama a API após trust gate e reserva de quota persistida. Wake-ups são best-effort e podem ser coalescidos sem perda de pedidos.
+GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`, que também aplica denylist fail-closed ao control plane. PRs de fork usam CODEX-01 base-trusted carregado exclusivamente da `main`, por broker determinístico/tool-less que envia apenas diff/metadados ao modelo, sem shell/tools. Cada solicitação é persistida primeiro em fila/ledger GitHub durável; um Quota Broker/drainer reconciliador consome o backlog e só chama a API após trust gate, reserva persistida e claim atômico exclusivo `RESERVED → CONSUMED`. O reviewer reconstrói o conjunto completo de mudanças por Git Trees/Blobs do base e do HEAD; qualquer impossibilidade de provar completude bloqueia o review em vez de permitir análise parcial. Wake-ups são best-effort e podem ser coalescidos sem perda de pedidos.
 
 **Vantagens**
 - eventos, concurrency, permissions e runners no mesmo sistema;
@@ -189,7 +189,10 @@ Esta seção registra recomendação, não aceite.
 - persistir cada solicitação de review de fork em fila GitHub durável antes de qualquer wake-up;
 - drenar/reconciliar backlog em seção crítica global, deduplicando pedidos e persistindo reserva antes da API, sem tratar `concurrency` como fila de solicitações;
 - manter reconciler periódico para garantir progresso quando wake-ups forem coalescidos ou perdidos;
-- tratar reserva ambígua por crash como consumo conservador, sem retry pago automático do mesmo SHA;
+- realizar claim atômico `RESERVED → CONSUMED`, vinculado a `consumer_run_id`, antes da API e rejeitar consumidores concorrentes;
+- provar completude do conteúdo revisado por manifests de Git Trees/Blobs do base e HEAD, sem depender do endpoint limitado de arquivos do PR;
+- bloquear review parcial quando houver truncamento, objeto ausente, binário não revisável ou payload integral acima do limite;
+- tratar consumo ambíguo por crash como consumo conservador, sem retry pago automático do mesmo SHA;
 - instalar dispatcher, Trusted Publisher, fila/ledger, Quota Broker/drainer, reconciler e entrypoint seguro de review de fork na `main` em bootstrap anterior ao canary do runtime;
 - testar concurrency, dispatch e reentrada;
 - documentar mudanças de modelo/custo.
