@@ -248,8 +248,8 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 ## 10. Migração e rollout
 
-1. aprovar explicitamente a SDD-0001 v0.8 após parecer técnico favorável para essa mesma versão;
-2. aceitar explicitamente o ADR-0012 rev.7 após parecer técnico favorável para essa mesma revisão;
+1. aprovar explicitamente a SDD-0001 v0.9 após parecer técnico favorável para essa mesma versão;
+2. aceitar explicitamente o ADR-0012 rev.8 após parecer técnico favorável para essa mesma revisão;
 3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável, o Trusted Publisher mínimo com denylist fail-closed, o broker base-trusted/tool-less do CODEX-01 para forks, a fila/ledger GitHub dedicada, o Quota Broker/drainer e o reconciler periódico; cada pedido persiste `PENDING` antes do wake-up e cada consumo persiste `RESERVED` antes da API; o Publisher não executa Codex nem usa `OPENAI_API_KEY`;
 4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando os entrypoints confiáveis de dispatch e review de fork existentes na branch padrão;
 5. configurar projeto/API OpenAI, hard budget/alerts e adicionar `OPENAI_API_KEY` como secret;
