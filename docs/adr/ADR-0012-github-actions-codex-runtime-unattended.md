@@ -257,7 +257,7 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 same-repo no **PR do runtime**, mantendo publicação privilegiada e CODEX-01 de fork nos componentes base-trusted já bootstrapados;
 7. executar unit/integration/security tests;
 8. executar canary controlado pré-merge acionando o dispatcher já presente na `main` contra PR/HEAD same-repo elegível;
-9. no canary same-repo, cada remediação corrigível deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `persistir PENDING → wake-up best-effort → drainer/reconciler → reserva durável → fork HEAD → diff/API → broker tool-less → CODEX-01 → evidência vinculada ao SHA`, incluindo pelo menos 6 PRs simultâneos, coalescência de wake-ups, reconciliação do backlog, crash após reserva, exfiltração negativa e bloqueio antes da API;
+9. no canary same-repo, cada remediação corrigível deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `PENDING → RESERVED → CONSUMED exclusivo → reconstrução integral base/HEAD por Git Trees/Blobs → broker tool-less → CODEX-01`, incluindo consumidores concorrentes, truncamento/ausência de objeto, conteúdo não revisável, payload integral acima do limite, pelo menos 6 PRs simultâneos, coalescência de wake-ups, crash após claim e exfiltração negativa;
 10. obter autorização humana e fazer merge do PR do runtime;
 11. executar canary pós-merge do ciclo completo;
 12. somente então `DONE_ALLOWED`.
