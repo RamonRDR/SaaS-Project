@@ -5,13 +5,13 @@
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
 - **Status:** Proposed
-- **Revisão decisória:** 6
+- **Revisão decisória:** 7
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-07
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v0.7
+- **SDDs relacionadas:** SDD-0001 v0.8
 - **ADRs relacionados:** ADR-0010; ADR-0011 histórico privado não importado
 - **PR / issue relacionada:** Issue #1
 
@@ -89,7 +89,7 @@ Eventos do GitHub acordam um runtime externo, que reconcilia o estado e executa 
 
 **Descrição**
 
-GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`, que também aplica denylist fail-closed ao control plane. PRs de fork usam CODEX-01 base-trusted carregado exclusivamente da `main`, por broker determinístico/tool-less que envia apenas diff/metadados ao modelo, sem shell/tools, e só chama a API após trust gate e uma reserva atômica de quota emitida por Quota Broker serializado por `author_id` entre todos os PRs.
+GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`, que também aplica denylist fail-closed ao control plane. PRs de fork usam CODEX-01 base-trusted carregado exclusivamente da `main`, por broker determinístico/tool-less que envia apenas diff/metadados ao modelo, sem shell/tools. Cada solicitação é persistida primeiro em fila/ledger GitHub durável; um Quota Broker/drainer reconciliador consome o backlog e só chama a API após trust gate e reserva de quota persistida. Wake-ups são best-effort e podem ser coalescidos sem perda de pedidos.
 
 **Vantagens**
 - eventos, concurrency, permissions e runners no mesmo sistema;
@@ -186,9 +186,11 @@ Esta seção registra recomendação, não aceite.
 - manter denylist versionada e fail-closed para impedir que remediação automática altere o próprio control plane;
 - prover CODEX-01 base-trusted para forks por broker tool-less, sem checkout/execução de código externo e sem ferramentas agentivas;
 - aplicar trust gate, idempotência por HEAD e quotas por PR/autor antes de chamadas pagas originadas por fork;
-- serializar `check + reserve` de quota por `author_id` entre PRs, persistindo a reserva em ledger GitHub durável antes da API;
+- persistir cada solicitação de review de fork em fila GitHub durável antes de qualquer wake-up;
+- drenar/reconciliar backlog em seção crítica global, deduplicando pedidos e persistindo reserva antes da API, sem tratar `concurrency` como fila de solicitações;
+- manter reconciler periódico para garantir progresso quando wake-ups forem coalescidos ou perdidos;
 - tratar reserva ambígua por crash como consumo conservador, sem retry pago automático do mesmo SHA;
-- instalar dispatcher, Trusted Publisher, Quota Broker/ledger e entrypoint seguro de review de fork na `main` em bootstrap anterior ao canary do runtime;
+- instalar dispatcher, Trusted Publisher, fila/ledger, Quota Broker/drainer, reconciler e entrypoint seguro de review de fork na `main` em bootstrap anterior ao canary do runtime;
 - testar concurrency, dispatch e reentrada;
 - documentar mudanças de modelo/custo.
 
@@ -210,8 +212,10 @@ Segurança operacional:
 - o runtime nunca pode autoalterar Publisher, dispatcher, workflows, prompts, schemas, state machine ou contratos que governam seus próprios privilégios;
 - para forks, o diff é obtido via API e vinculado ao `head.sha`; workflow, prompt, schema e broker vêm exclusivamente da branch padrão;
 - conteúdo do fork trafega como JSON/stdin/HTTP e nunca é interpolado em shell; prompt injection não ganha capacidade de ler env, `/proc`, filesystem ou subprocessos;
-- chamadas pagas para forks exigem trust gate (`OWNER`/`MEMBER`/`COLLABORATOR` ou aprovação explícita de maintainer), uma única chamada por `head.sha`, máximo de 3 por PR/24h e 5 por autor externo/24h; a autorização é materializada por Quota Broker da `main` que serializa `check + reserve` com `concurrency` compartilhada por `author_id`, `cancel-in-progress: false`, e persiste a reserva em ledger GitHub dedicado antes da API; excedentes são bloqueados antes da API e viram `HUMAN_DECISION_REQUIRED`;
-- o job OpenAI de fork rejeita execução sem reserva persistida para o mesmo autor/PR/HEAD; reservas ambíguas após crash contam na quota e não permitem nova cobrança automática do mesmo SHA;
+- chamadas pagas para forks exigem trust gate (`OWNER`/`MEMBER`/`COLLABORATOR` ou aprovação explícita de maintainer), uma única chamada por `head.sha`, máximo de 3 por PR/24h e 5 por autor externo/24h;
+- antes de qualquer wake-up, o pedido é persistido como `PENDING` com `request_id` determinístico em fila GitHub dedicada; wake-ups não são fonte de verdade;
+- um Quota Broker/drainer global da `main` reconcilia o journal e materializa a autorização como `RESERVED` antes da API; coalescência de workflows não apaga pedidos e um reconciler periódico garante eventual progresso;
+- o job OpenAI de fork rejeita execução sem reserva persistida para o mesmo autor/PR/HEAD/request; reservas ambíguas após crash contam na quota e não permitem nova cobrança automática do mesmo SHA;
 - `main` fora da autoridade unattended;
 - conteúdo do PR é untrusted input;
 - não usar `pull_request_target` para executar código não confiável com secrets;
@@ -241,15 +245,15 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 ## 10. Migração e rollout
 
-1. aprovar explicitamente a SDD-0001 v0.7 após parecer técnico favorável para essa mesma versão;
-2. aceitar explicitamente o ADR-0012 rev.6 após parecer técnico favorável para essa mesma revisão;
-3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável, o Trusted Publisher mínimo com denylist fail-closed, o broker base-trusted/tool-less do CODEX-01 para forks e o Quota Broker com ledger GitHub dedicado; a reserva usa `concurrency` compartilhada por `author_id`, persiste `RESERVED` antes da API e o Publisher não executa Codex nem usa `OPENAI_API_KEY`;
+1. aprovar explicitamente a SDD-0001 v0.8 após parecer técnico favorável para essa mesma versão;
+2. aceitar explicitamente o ADR-0012 rev.7 após parecer técnico favorável para essa mesma revisão;
+3. implementar e revisar um **PR de bootstrap** contendo o dispatcher confiável, o Trusted Publisher mínimo com denylist fail-closed, o broker base-trusted/tool-less do CODEX-01 para forks, a fila/ledger GitHub dedicada, o Quota Broker/drainer e o reconciler periódico; cada pedido persiste `PENDING` antes do wake-up e cada consumo persiste `RESERVED` antes da API; o Publisher não executa Codex nem usa `OPENAI_API_KEY`;
 4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando os entrypoints confiáveis de dispatch e review de fork existentes na branch padrão;
 5. configurar projeto/API OpenAI, hard budget/alerts e adicionar `OPENAI_API_KEY` como secret;
 6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 same-repo no **PR do runtime**, mantendo publicação privilegiada e CODEX-01 de fork nos componentes base-trusted já bootstrapados;
 7. executar unit/integration/security tests;
 8. executar canary controlado pré-merge acionando o dispatcher já presente na `main` contra PR/HEAD same-repo elegível;
-9. no canary same-repo, cada remediação corrigível deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `trust gate → Quota Broker atômico → reserva durável → fork HEAD → diff/API → broker tool-less → CODEX-01 → evidência vinculada ao SHA`, incluindo teste concorrente com pelo menos 6 PRs do mesmo autor, crash após reserva, exfiltração negativa e bloqueio antes da API;
+9. no canary same-repo, cada remediação corrigível deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `persistir PENDING → wake-up best-effort → drainer/reconciler → reserva durável → fork HEAD → diff/API → broker tool-less → CODEX-01 → evidência vinculada ao SHA`, incluindo pelo menos 6 PRs simultâneos, coalescência de wake-ups, reconciliação do backlog, crash após reserva, exfiltração negativa e bloqueio antes da API;
 10. obter autorização humana e fazer merge do PR do runtime;
 11. executar canary pós-merge do ciclo completo;
 12. somente então `DONE_ALLOWED`.
@@ -296,14 +300,16 @@ Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa 
 | 2026-10-06 | Product & SDD | Reviewer de fork tool-less + trust gate e quotas | Revisão decisória 5 proposta |
 | 2026-10-06 | Orchestrator / Tech Lead | Revisão técnica da rev.5 | Retornar para ajustes após P1 de corrida de quota entre PRs |
 | 2026-10-07 | Product & SDD | Quota Broker com reserva atômica cross-PR e ledger durável | Revisão decisória 6 proposta |
+| 2026-10-07 | Orchestrator / Tech Lead | Revisão técnica da rev.6 | Retornar para ajustes após P2 sobre perda de execuções pendentes em `concurrency` |
+| 2026-10-07 | Product & SDD | Fila durável + drainer/reconciler idempotente | Revisão decisória 7 proposta |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Nova revisão pendente após atomicidade de quota entre PRs
-- **Revisão decisória revisada:** Não aplicável à rev.6 até conclusão do novo ciclo
+- **Parecer de `review-adr`:** Nova revisão pendente após fila durável de reviews de fork
+- **Revisão decisória revisada:** Não aplicável à rev.7 até conclusão do novo ciclo
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-07
-- **Pendências bloqueantes:** validar Quota Broker cross-PR, reserva durável antes da API e comportamento fail-closed após crash
+- **Pendências bloqueantes:** validar persistência `PENDING` antes do wake-up, drainer/reconciler resistente a coalescência e reserva durável antes da API
 - **Pendências não bloqueantes:** definir modelo e hard budget antes do canary
 
 ## 17. Aceite humano
