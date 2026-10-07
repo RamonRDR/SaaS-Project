@@ -218,7 +218,8 @@ Segurança operacional:
 - chamadas pagas para forks exigem trust gate (`OWNER`/`MEMBER`/`COLLABORATOR` ou aprovação explícita de maintainer), uma única chamada por `head.sha`, máximo de 3 por PR/24h e 5 por autor externo/24h;
 - antes de qualquer wake-up, o pedido é persistido como `PENDING` com `request_id` determinístico em fila GitHub dedicada; wake-ups não são fonte de verdade;
 - um Quota Broker/drainer global da `main` reconcilia o journal e materializa a autorização como `RESERVED` antes da API; coalescência de workflows não apaga pedidos e um reconciler periódico garante eventual progresso;
-- o job OpenAI de fork rejeita execução sem reserva persistida para o mesmo autor/PR/HEAD/request; reservas ambíguas após crash contam na quota e não permitem nova cobrança automática do mesmo SHA;
+- o job de review de fork só executa para o único `consumer_run_id` que venceu a transição atômica `RESERVED → CONSUMED`; consumidores subsequentes encerram antes da API e consumo ambíguo após crash não permite nova chamada automática do mesmo SHA;
+- o broker enumera integralmente as árvores Git de base/HEAD, busca todos os objetos alterados necessários e emite manifest/digest de completude; qualquer truncamento, ausência, binário não revisável, objeto não suportado ou payload integral acima do limite resulta em `HUMAN_DECISION_REQUIRED`, sem CODEX-01 clean;
 - `main` fora da autoridade unattended;
 - conteúdo do PR é untrusted input;
 - não usar `pull_request_target` para executar código não confiável com secrets;
