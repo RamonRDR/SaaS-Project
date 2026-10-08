@@ -5,13 +5,13 @@
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
 - **Status:** Proposed
-- **Revisão decisória:** 8
+- **Revisão decisória:** 9
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-07
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v0.9
+- **SDDs relacionadas:** SDD-0001 v1.0
 - **ADRs relacionados:** ADR-0010; ADR-0011 histórico privado não importado
 - **PR / issue relacionada:** Issue #1
 
@@ -89,7 +89,7 @@ Eventos do GitHub acordam um runtime externo, que reconcilia o estado e executa 
 
 **Descrição**
 
-GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`, que também aplica denylist fail-closed ao control plane. PRs de fork usam CODEX-01 base-trusted carregado exclusivamente da `main`, por broker determinístico/tool-less que envia apenas diff/metadados ao modelo, sem shell/tools. Cada solicitação é persistida primeiro em fila/ledger GitHub durável; um Quota Broker/drainer reconciliador consome o backlog e só chama a API após trust gate, reserva persistida e claim atômico exclusivo `RESERVED → CONSUMED`. O reviewer reconstrói o conjunto completo de mudanças por Git Trees/Blobs do base e do HEAD; qualquer impossibilidade de provar completude bloqueia o review em vez de permitir análise parcial. Wake-ups são best-effort e podem ser coalescidos sem perda de pedidos.
+GitHub Actions executa a state machine, CI, guards, dispatch e transições. Codex é chamado em jobs específicos para geração de remediação e review, sempre sem credencial GitHub com escrita. A publicação do patch é feita por um Trusted Publisher separado, sem processo Codex e sem `OPENAI_API_KEY`, que também aplica denylist fail-closed ao control plane. PRs de fork usam CODEX-01 base-trusted carregado exclusivamente da `main`, por broker determinístico/tool-less que envia apenas diff/metadados ao modelo, sem shell/tools. Cada solicitação é persistida primeiro em fila/ledger GitHub durável; um Quota Broker/drainer reconciliador consome o backlog e só chama a API após trust gate, reserva persistida e claim atômico exclusivo `RESERVED → CONSUMED`. O reviewer resolve o merge-base real entre `base_tip_sha` e `head_sha`, e reconstrói o changeset de três pontos a partir das árvores desse ancestral e do HEAD; a ponta base é só metadado. Completude não comprovada bloqueia o review. TODAS as chamadas pagas (fork, same-repo e remediação) exigem ainda autorização de um Budget Broker global com reserva monetária pessimista e atômica, sem rota de API direta nos jobs consumidores. Wake-ups são best-effort e podem ser coalescidos sem perda de pedidos.
 
 **Vantagens**
 - eventos, concurrency, permissions e runners no mesmo sistema;
@@ -179,7 +179,7 @@ Esta seção registra recomendação, não aceite.
 
 ### Novas obrigações
 - manter projeto OpenAI dedicado ou segregado para automação;
-- configurar hard budget/alerts antes do canary;
+- definir orçamento monetário mensal global, caps de tokens e tabela de preços antes de qualquer chamada; alertas/limites da plataforma são apenas defesa adicional;
 - pin de Actions por SHA;
 - revisar segurança de cada workflow privilegiado;
 - manter geração de patch e publicação Git em jobs distintos, sem compartilhamento de credenciais privilegiadas;
@@ -190,9 +190,12 @@ Esta seção registra recomendação, não aceite.
 - drenar/reconciliar backlog em seção crítica global, deduplicando pedidos e persistindo reserva antes da API, sem tratar `concurrency` como fila de solicitações;
 - manter reconciler periódico para garantir progresso quando wake-ups forem coalescidos ou perdidos;
 - realizar claim atômico `RESERVED → CONSUMED`, vinculado a `consumer_run_id`, antes da API e rejeitar consumidores concorrentes;
-- provar completude do conteúdo revisado por manifests de Git Trees/Blobs do base e HEAD, sem depender do endpoint limitado de arquivos do PR;
+- provar completude do conteúdo revisado por manifests de Git Trees/Blobs do **merge-base** e HEAD, sem usar a ponta da base diretamente nem depender do endpoint limitado de arquivos do PR;
 - bloquear review parcial quando houver truncamento, objeto ausente, binário não revisável ou payload integral acima do limite;
-- tratar consumo ambíguo por crash como consumo conservador, sem retry pago automático do mesmo SHA;
+- tratar consumo ambíguo por crash como comprometimento conservador de quota e custo máximo, sem retry pago automático do mesmo SHA;
+- centralizar credenciais pagas no Budget Broker da `main` e bloquear acesso direto à API por Codex Remediator, CODEX-01 same-repo e fork;
+- reservar custo monetário máximo antes de qualquer chamada de IA usando ledger GitHub durável e compare-and-set real, abrangendo todos os PRs e papéis;
+- negar preço desconhecido, entrada ou saída ilimitada, modelo/fallback fora de catálogo e indisponibilidade de ledger;
 - instalar dispatcher, Trusted Publisher, fila/ledger, Quota Broker/drainer, reconciler e entrypoint seguro de review de fork na `main` em bootstrap anterior ao canary do runtime;
 - testar concurrency, dispatch e reentrada;
 - documentar mudanças de modelo/custo.
@@ -213,13 +216,16 @@ Segurança operacional:
 - antes do push, o Trusted Publisher valida same-repo confiável, HEAD esperado, ref de destino, escopo do patch, invariantes do contrato e denylist do control plane;
 - a denylist mínima cobre `.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/engineering/**`, `docs/specs/**`, `docs/adr/**` e `docs/PROJECT_STATUS.md`; qualquer match rejeita o patch inteiro e exige decisão humana;
 - o runtime nunca pode autoalterar Publisher, dispatcher, workflows, prompts, schemas, state machine ou contratos que governam seus próprios privilégios;
-- para forks, o diff é obtido via API e vinculado ao `head.sha`; workflow, prompt, schema e broker vêm exclusivamente da branch padrão;
+- para forks, o changeset é obtido por API Git a partir de `merge_base(base_tip_sha,head_sha)` até `head_sha`; a ponta da base não entra no cálculo de alterações; workflow, prompt, schema e broker vêm exclusivamente da branch padrão;
 - conteúdo do fork trafega como JSON/stdin/HTTP e nunca é interpolado em shell; prompt injection não ganha capacidade de ler env, `/proc`, filesystem ou subprocessos;
 - chamadas pagas para forks exigem trust gate (`OWNER`/`MEMBER`/`COLLABORATOR` ou aprovação explícita de maintainer), uma única chamada por `head.sha`, máximo de 3 por PR/24h e 5 por autor externo/24h;
 - antes de qualquer wake-up, o pedido é persistido como `PENDING` com `request_id` determinístico em fila GitHub dedicada; wake-ups não são fonte de verdade;
 - um Quota Broker/drainer global da `main` reconcilia o journal e materializa a autorização como `RESERVED` antes da API; coalescência de workflows não apaga pedidos e um reconciler periódico garante eventual progresso;
 - o job de review de fork só executa para o único `consumer_run_id` que venceu a transição atômica `RESERVED → CONSUMED`; consumidores subsequentes encerram antes da API e consumo ambíguo após crash não permite nova chamada automática do mesmo SHA;
-- o broker enumera integralmente as árvores Git de base/HEAD, busca todos os objetos alterados necessários e emite manifest/digest de completude; qualquer truncamento, ausência, binário não revisável, objeto não suportado ou payload integral acima do limite resulta em `HUMAN_DECISION_REQUIRED`, sem CODEX-01 clean;
+- o broker enumera integralmente as árvores Git de merge-base/HEAD, busca todos os objetos alterados necessários e emite manifest/digest de completude com `base_tip_sha`, `merge_base_sha`, `head_sha`; qualquer truncamento, ausência, binário não revisável, objeto não suportado ou payload integral acima do limite resulta em `HUMAN_DECISION_REQUIRED`, sem CODEX-01 clean;
+- um Budget Broker exclusivo possui a chave do provedor e impõe, antes de toda chamada paga, orçamento mensal global em unidades monetárias inteiras, custo máximo pessimista baseado em preços versionados, tokens e número de requests/retries limitados;
+- cada autorização monetária é `check + reserve` por CAS do ledger global; o total `committed + outstanding_max + new_max` não ultrapassa o limite. Jobs de Codex não possuem credencial nem endpoint que contorne o broker;
+- custo de resposta inconclusiva permanece reservado pelo máximo. Preço desconhecido, ledger indisponível ou orçamento não definido bloqueia execução. Alertas e hard limits da plataforma podem auxiliar, mas eventual enforcement tardio não é a garantia primária;
 - `main` fora da autoridade unattended;
 - conteúdo do PR é untrusted input;
 - não usar `pull_request_target` para executar código não confiável com secrets;
@@ -243,21 +249,22 @@ Fontes de evidência:
 - commits de remediação;
 - root cause/attempts;
 - checkpoints;
-- billing/usage do projeto OpenAI.
+- ledger de budget do broker: período UTC, teto, comprometido, reservado máximo, decisões CAS, custo conciliado;
+- billing/usage do projeto OpenAI (telemetria auxiliar).
 
 Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 ## 10. Migração e rollout
 
-1. aprovar explicitamente a SDD-0001 v0.9 após parecer técnico favorável para essa mesma versão;
-2. aceitar explicitamente o ADR-0012 rev.8 após parecer técnico favorável para essa mesma revisão;
-3. implementar e revisar um **PR de bootstrap** contendo dispatcher, Trusted Publisher, broker tool-less de forks, fila/ledger, Quota Broker/drainer e reconciler; cada pedido persiste `PENDING`, cada slot persiste `RESERVED`, somente um claim atômico `CONSUMED` vinculado a `consumer_run_id` libera a chamada, e o broker prova o payload completo por Git Trees/Blobs antes do review;
+1. aprovar explicitamente a SDD-0001 v1.0 após parecer técnico favorável para essa mesma versão;
+2. aceitar explicitamente o ADR-0012 rev.9 após parecer técnico favorável para essa mesma revisão;
+3. implementar e revisar **PR de bootstrap** com dispatcher, Trusted Publisher, fila/ledger, Quota Broker/drainer, Budget Broker global exclusivo e reconciler; somente um claim atômico libera a chamada após reservar quota e custo máximo global por CAS; o review de fork usa merge-base/HEAD para provar completude;
 4. após CI/revisão, realizar merge humano do bootstrap na `main`, tornando os entrypoints confiáveis de dispatch e review de fork existentes na branch padrão;
-5. configurar projeto/API OpenAI, hard budget/alerts e adicionar `OPENAI_API_KEY` como secret;
+5. configurar limite monetário global positivo aprovado humanamente, catálogo/versionamento de preços e caps máximos de tokens/retries; atribuir chave OpenAI somente ao Budget Broker e configurar alertas/limites na plataforma como proteção adicional;
 6. implementar reducer V2, jobs de geração Codex sem escrita e CODEX-01 same-repo no **PR do runtime**, mantendo publicação privilegiada e CODEX-01 de fork nos componentes base-trusted já bootstrapados;
 7. executar unit/integration/security tests;
 8. executar canary controlado pré-merge acionando o dispatcher já presente na `main` contra PR/HEAD same-repo elegível;
-9. no canary same-repo, cada remediação corrigível deve seguir `Codex sem escrita → patch estruturado → validação de denylist → Trusted Publisher → novo HEAD → dispatch explícito`; um canary separado de fork deve provar `PENDING → RESERVED → CONSUMED exclusivo → reconstrução integral base/HEAD por Git Trees/Blobs → broker tool-less → CODEX-01`, incluindo consumidores concorrentes, truncamento/ausência de objeto, conteúdo não revisável, payload integral acima do limite, pelo menos 6 PRs simultâneos, coalescência de wake-ups, crash após claim e exfiltração negativa;
+9. canaries same-repo e fork devem provar `budget CAS global → quota/claim exclusivo → API`, sem bypass, com testes de concorrência monetária, falha e virada UTC; para fork, `merge-base(base_tip,head) → diff três pontos → payload integral → CODEX-01`. Incluir base avançada, merge-base indisponível, truncamento, 6 PRs concorrentes, coalescência de wake-ups, crash após claim e exfiltração negativa;
 10. obter autorização humana e fazer merge do PR do runtime;
 11. executar canary pós-merge do ciclo completo;
 12. somente então `DONE_ALLOWED`.
@@ -287,7 +294,7 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 Nenhum risco crítico não tratado.
 
-Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa escolha não pode enfraquecer os limites de tentativas nem os controles de segurança.
+Antes de qualquer canary pago é obrigatório o Budget Broker com orçamento positivo aprovado, custos máximos verificáveis, tabela de preços versionada, limites efetivos de entrada/saída/retries e ledger atômico global. Nenhum orçamento apenas informativo pode ser tratado como bloqueante.
 
 ## 15. Histórico de revisão
 
@@ -309,22 +316,24 @@ Antes do canary ainda é obrigatório definir modelo e hard budget de API. Essa 
 | 2026-10-07 | Ramon Rodriguez | Aceite humano da rev.7 | Accepted no comentário #6043168597 |
 | 2026-10-07 | Orchestrator / Tech Lead | Review pós-formalização da rev.7 | Retornar para ajustes após P1 de completude do payload e consumo atômico da reserva |
 | 2026-10-07 | Product & SDD | Completude por Git Trees/Blobs + claim exclusivo de consumo | Revisão decisória 8 proposta |
+| 2026-10-07 | Orchestrator / Tech Lead | Review da rev.8 | Retornar após P1 de merge-base e teto de gasto efetivo |
+| 2026-10-08 | Product & SDD | Merge-base/HEAD e Budget Broker global atômico | Revisão decisória 9 proposta |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Nova revisão pendente após P1 de completude e consumo exclusivo
-- **Revisão decisória revisada:** Não aplicável à rev.8 até conclusão do novo ciclo
+- **Parecer de `review-adr`:** Nova revisão pendente após P1 de merge-base e limite global de custo
+- **Revisão decisória revisada:** Não aplicável à rev.9 até conclusão do novo ciclo
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-07
 - **Evidência anterior:** rev.7 foi aceita humanamente, mas o review do HEAD de formalização encontrou dois P1 materiais
-- **Pendências bloqueantes:** validar payload integral e consumo exclusivo antes da chamada paga
-- **Pendências não bloqueantes:** definir modelo e hard budget antes do canary
+- **Pendências bloqueantes:** validar diff merge-base/HEAD e Budget Broker monetário global atômico para todos os jobs pagos
+- **Pendências não bloqueantes:** definir valor numérico do budget humano, modelo e tabela de preços antes de ativar chamadas pagas
 
 ## 17. Aceite humano
 
 - **Aceito:** Não para a revisão atual
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Não aplicável à rev.8
-- **Revisão decisória aceita:** Não aplicável à rev.8
+- **Data:** Não aplicável à rev.9
+- **Revisão decisória aceita:** Não aplicável à rev.9
 - **Registro do aceite atual:** Pendente
-- **Aceite histórico preservado:** rev.7, PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); invalidado para rev.8 por mudança material
+- **Aceite histórico preservado:** rev.7, PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); não valida rev.9
