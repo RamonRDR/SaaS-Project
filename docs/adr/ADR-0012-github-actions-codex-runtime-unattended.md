@@ -4,8 +4,9 @@
 
 - **ID:** ADR-0012
 - **Título:** GitHub Actions + Codex como runtime unattended
-- **Status:** Accepted
+- **Status:** Superseded
 - **Revisão decisória:** 7
+- **Substituída por:** ADR-0013 rev.1 (`Accepted` em 2026-10-08, registro PR #2 comentário #6070726649). A decisão original permanece inalterada nas seções decisórias.
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-07
 - **Responsável pela proposta documental:** Product & SDD

@@ -4,14 +4,14 @@
 
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
-- **Status:** In Review
+- **Status:** Approved
 - **Versão:** 1.1
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-08
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (histórico aceito), ADR-0013 rev.1 (sucessora proposta)
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (histórico, `Superseded`), ADR-0013 rev.1 (`Accepted`)
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -532,17 +532,19 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Nova revisão pendente após P1 de revalidação de mês UTC e P2 de imutabilidade de ADR aceita
-- **Versão revisada:** Não aplicável à v1.1 até conclusão do novo ciclo
-- **Evidência técnica anterior:** v0.8 teve CODEX-01 clean no HEAD `85a7541646ce22c5d9a2784c8a6623e42675890a`, mas o review posterior do HEAD de formalização `8b66bb441710c2a859cb21fb7f0fed077c8d0379` revelou dois P1 materiais
-- **Pendências bloqueantes:** testar novo período UTC no claim/dispatch e confirmar ADR-0012 restaurada e ADR-0013 sucessora separada
-- **Pendências não bloqueantes:** definir modelo e hard budget de API antes do canary
+- **Parecer de `review-sdd`:** Pronta para aprovação
+- **Versão revisada:** 1.1
+- **Revisor:** Orchestrator / Tech Lead
+- **Data:** 2026-10-08
+- **Evidência técnica:** CODEX-01 clean para `c949295e8fe5a81ff7ca2a1575ff11f2cbc423c6`, Governance Gates #25 `success`, com correção documental dos P1/P2 anteriores.
+- **Pendências bloqueantes:** Nenhuma para aprovação arquitetural/documental.
+- **Pendências não bloqueantes:** implementação, testes E2E de orçamento/concorrência, modelo e configuração do limite monetário antes do canary.
 
 ### Gate humano
 
-- **Aprovada:** Não para a versão atual
-- **Versão aprovada:** Não aplicável à v1.1
+- **Aprovada:** Sim
+- **Versão aprovada:** 1.1
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Não aplicável à v1.1
-- **Registro da aprovação atual:** Pendente
+- **Data:** 2026-10-08
+- **Registro da aprovação atual:** PR #2, comentário #6070726649 (`ORCHESTRATOR_RECORDED_HUMAN_APPROVAL`), transcrição da aprovação explícita no ChatGPT
 - **Aprovação histórica preservada:** SDD v0.8 e ADR-0012 rev.7, PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); não aprovam SDD v1.1/ADR-0013 rev.1

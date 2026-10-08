@@ -4,7 +4,7 @@
 
 - **ID:** ADR-0013
 - **Título:** Hardening do runtime unattended: Budget Broker e forks
-- **Status:** Proposed
+- **Status:** Accepted
 - **Revisão decisória:** 1
 - **Data de criação:** 2026-10-08
 - **Última atualização:** 2026-10-08
@@ -12,7 +12,7 @@
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
 - **SDDs relacionadas:** SDD-0001 v1.1
-- **ADRs relacionados:** ADR-0010; ADR-0012 rev.7 `Accepted` (vigente, proposta de substituição); ADR-0011 histórico não importado
+- **ADRs relacionados:** ADR-0010; ADR-0012 rev.7 (`Superseded` após aceite da ADR-0013); ADR-0011 histórico não importado
 - **PR / issue relacionada:** Issue #1
 
 ### Estados permitidos
@@ -304,22 +304,23 @@ Antes de qualquer canary pago é obrigatório o Budget Broker com orçamento pos
 | Data | Responsável | Ação | Resultado |
 | --- | --- | --- | --- |
 | 2026-10-08 | Product & SDD | Proposta sucessora à ADR-0012 rev.7 para hardening de fork, merge-base, credenciais exclusivas e orçamento global com revalidação do período UTC no claim/dispatch | Revisão decisória 1 `Proposed` |
+| 2026-10-08 | Ramon Rodriguez | Aceite humano expresso em ChatGPT, registrado no PR #2 comentário #6070726649 | Revisão decisória 1 `Accepted` |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Pendente para ADR-0013 rev.1; correções P1/P2 do review do PR #2 implementadas documentalmente
-- **Revisão decisória revisada:** Não aplicável à rev.1 até conclusão do novo ciclo
+- **Parecer de `review-adr`:** Pronto para aceite humano
+- **Revisão decisória revisada:** 1
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-08
-- **Evidência anterior:** ADR-0012 rev.7 foi aceita; revisões posteriores da proposta sem novo ID motivaram ADR-0013 conforme `docs/adr/README.md`
-- **Pendências bloqueantes:** validar rechecagem do mês UTC no claim/dispatch, controles herdados e separação de ADR aceita/sucessora
-- **Pendências não bloqueantes:** definir valor numérico do budget humano, modelo e tabela de preços antes de ativar chamadas pagas
+- **Evidência técnica:** CODEX-01 clean no HEAD `c949295e8fe5a81ff7ca2a1575ff11f2cbc423c6` e Governance Gates #25 `success`. ADR-0012 rev.7 mantida imutável até o aceite desta sucessora.
+- **Pendências bloqueantes:** Nenhuma para aceite da decisão arquitetural/documental.
+- **Pendências não bloqueantes:** definir budget humano, modelo/tabela de preços, implementar e testar o Budget Broker antes de ativar chamadas pagas
 
 ## 17. Aceite humano
 
-- **Aceito:** Não para a revisão atual
+- **Aceito:** Sim
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Não aplicável à rev.1
-- **Revisão decisória aceita:** Não aplicável à rev.1
-- **Registro do aceite atual:** Pendente
+- **Data:** 2026-10-08
+- **Revisão decisória aceita:** 1
+- **Registro do aceite atual:** PR #2, comentário #6070726649 (`ORCHESTRATOR_RECORDED_HUMAN_APPROVAL`), decisão humana expressa em ChatGPT
 - **Aceite histórico preservado:** ADR-0012 rev.7 (decisão diferente), PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); não aprova esta ADR-0013 rev.1
