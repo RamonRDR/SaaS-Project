@@ -23,7 +23,7 @@
 - `Superseded`: substituída por ADR posterior;
 - `Deprecated`: decisão anteriormente válida que deixou de ser recomendada.
 
-Nenhum agente de IA pode alterar sozinho o status para `Accepted`. A ADR-0012 rev.7 continua `Accepted` e vigente enquanto esta ADR-0013 estiver `Proposed`; esta proposta não a supersede automaticamente.
+Nenhum agente de IA pode alterar sozinho o status para `Accepted`. A ADR-0012 rev.7 permaneceu `Accepted` e vigente durante a fase `Proposed` da ADR-0013; seu estado passou a `Superseded` somente após o aceite humano desta sucessora, sem reescrever seu conteúdo decisório.
 
 ### Revisão decisória e validade do parecer
 
@@ -31,7 +31,7 @@ As seções 1 a 14 compõem o conteúdo decisório. Qualquer mudança material a
 
 ## 1. Contexto
 
-O projeto exige um runtime unattended que continue o Mode A sem máquina local e sem mensagens humanas operacionais. A arquitetura cloud-native foi aceita na **ADR-0012 rev.7** com evidência humana no PR #2 (comentário `HUMAN_APPROVAL` #6043168597). Ajustes materiais posteriores não podem sobrescrever aquela decisão histórica; esta **ADR-0013 rev.1** propõe o hardening adicional e somente poderá substituí-la após revisão favorável e aceite humano próprios.
+O projeto exige um runtime unattended que continue o Mode A sem máquina local e sem mensagens humanas operacionais. A arquitetura cloud-native foi aceita na **ADR-0012 rev.7** com evidência humana no PR #2 (comentário `HUMAN_APPROVAL` #6043168597). Ajustes materiais posteriores não podem sobrescrever aquela decisão histórica; esta **ADR-0013 rev.1**, após parecer técnico favorável e aceite humano próprios, formaliza o hardening adicional e sucede a ADR-0012 rev.7.
 
 Um desenho experimental anterior usou um runtime externo reativo como elo entre eventos do GitHub e o ciclo CI/review. A continuidade real não foi suficientemente determinística. Esse experimento foi encerrado e não foi importado para o histórico público.
 
@@ -281,7 +281,7 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 - **ADR-0010 — CI/CD e merge:** permanece `Accepted`; este ADR estende sua governança para o runtime unattended.
 - **ADR-0011 — experimento histórico privado:** ID consumido por arquitetura descartada, não importada ao Git público e não reutilizável.
-- **ADR-0012 rev.7 — decisão aceita:** permanece `Accepted` e vigente, com conteúdo decisório preservado exatamente como aprovado em 2026-10-07. Somente após o aceite humano desta ADR-0013 a ADR-0012 poderá ser marcada `Superseded`, mediante atualização de status/referência, sem reescrever o conteúdo decisório.
+- **ADR-0012 rev.7 — decisão histórica:** foi aceita em 2026-10-07 e seu conteúdo decisório permanece preservado. Após o aceite humano da ADR-0013 rev.1 em 2026-10-08, seu status foi atualizado para `Superseded` com referência explícita à sucessora, sem reescrita da decisão original.
 
 ## 13. Pareceres dos especialistas impactados
 
