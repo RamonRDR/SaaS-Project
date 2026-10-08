@@ -310,7 +310,7 @@ Antes de qualquer canary pago é obrigatório o Budget Broker com orçamento pos
 - **Parecer de `review-adr`:** Pendente para ADR-0013 rev.1; correções P1/P2 do review do PR #2 implementadas documentalmente
 - **Revisão decisória revisada:** Não aplicável à rev.1 até conclusão do novo ciclo
 - **Revisor:** Orchestrator / Tech Lead
-- **Data:** 2026-10-07
+- **Data:** 2026-10-08
 - **Evidência anterior:** ADR-0012 rev.7 foi aceita; revisões posteriores da proposta sem novo ID motivaram ADR-0013 conforme `docs/adr/README.md`
 - **Pendências bloqueantes:** validar rechecagem do mês UTC no claim/dispatch, controles herdados e separação de ADR aceita/sucessora
 - **Pendências não bloqueantes:** definir valor numérico do budget humano, modelo e tabela de preços antes de ativar chamadas pagas

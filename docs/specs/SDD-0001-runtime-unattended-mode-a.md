@@ -9,7 +9,7 @@
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
-- **Última atualização:** 2026-10-07
+- **Última atualização:** 2026-10-08
 - **Entrega / issue / PR relacionada:** Issue #1
 - **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (histórico aceito), ADR-0013 rev.1 (sucessora proposta)
 - **SDDs relacionadas:** Não aplicável
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 1.1 substitui a proposta 1.0 após dois achados P1 adicionais na revisão de `ba1957ae`: o reviewer de fork agora calcula o changeset de **merge-base(base_tip, head)** até `head.sha`, e não por diferença direta entre as duas pontas; o runtime passa a exigir **controle financeiro global próprio e bloqueante** antes de toda chamada paga, inclusive remediação e review same-repo. A cotação pessimista de custo é reservada em ledger GitHub com operação atômica antes do consumo, incluindo quotas anteriores, impedindo chamadas sem teto verificável. Limites da plataforma OpenAI e alertas permanecem defesa adicional e não substituem o broker. A aprovação anterior de SDD v0.8 e o aceite da ADR-0012 rev.7 permanecem históricos e não aprovam a SDD v1.1 ou a proposta sucessora ADR-0013 rev.1. A ADR-0012 volta a refletir fielmente o conteúdo aceito e só poderá ser marcada `Superseded` após o aceite humano da ADR-0013. A versão experimental privada v0.1 não foi importada ao Git público sanitizado.
+Esta versão 1.1 sucede a proposta 1.0 em resposta ao Codex Review do HEAD `f2ecda0`: (P1) revalidar o mês UTC no claim final e imediatamente antes do dispatch HTTP de toda chamada paga, negando autorizações de períodos vencidos e exigindo reserva/claim no bucket corrente; (P2) preservar a ADR-0012 rev.7 exatamente como aceita, documentando os ajustes materiais na ADR-0013 rev.1 `Proposed`. Permanecem os controles introduzidos na v1.0: diff de três pontos via `merge-base(base_tip_sha,head_sha) → head_sha`, Budget Broker exclusivo, orçamento monetário global com reserva atômica pessimista e sem acesso direto à credencial pelos jobs consumidores. A aprovação histórica da SDD v0.8 e da ADR-0012 rev.7 não aprova esta SDD v1.1 nem a sucessora ADR-0013; a ADR-0012 somente poderá ser marcada `Superseded` após aceite humano da ADR-0013. A versão privada experimental v0.1 não foi importada.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
