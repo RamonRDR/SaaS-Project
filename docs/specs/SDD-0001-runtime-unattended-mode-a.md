@@ -117,7 +117,7 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 ## 7. Regras de negócio
 
 - **BR-001:** o runtime só opera em PR com `ORCHESTRATOR_MODE: A` e `CONTROL_ISSUE` válido.
-- **BR-002:** PR originado de fork nunca recebe `OPENAI_API_KEY`, token com escrita ou qualquer secret dentro de ambiente controlado pelo código do fork; o reviewer base-trusted pode usar `OPENAI_API_KEY` somente em workflow carregado da `main`, sem checkout nem execução de conteúdo do fork.
+- **BR-002:** PR originado de fork e seus jobs consumidores nunca recebem `OPENAI_API_KEY`, token com escrita ou secret privilegiado. O reviewer base-trusted, carregado da `main`, prepara o payload sem checkout nem execução de conteúdo do fork e solicita inferência ao Budget Broker isolado; somente o Budget Broker recebe `OPENAI_API_KEY` e realiza a chamada paga após os gates.
 - **BR-003:** jobs com escrita Git só operam em branch do mesmo repositório e origem considerada confiável. O único job privilegiado permitido para fork é o CODEX-01 base-trusted, limitado a leitura de repositório/PR e publicação de evidência de review, sem `contents: write`.
 - **BR-004:** toda execução começa reconciliando PR, HEAD, checks, estado e evidências atuais.
 - **BR-005:** `concurrency` serializa o runtime por PR com `cancel-in-progress: false`.
@@ -140,8 +140,8 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - **BR-022:** para PR de fork, CODEX-01 executa em contexto base-trusted a partir da branch padrão, usando somente workflow, prompt, schema e tooling da `main`; obtém metadados e diff pela API do GitHub, trata-os como dados não confiáveis, não faz checkout do HEAD do fork e não executa nenhum arquivo do PR.
 - **BR-023:** a evidência CODEX-01 de fork deve registrar o `head.sha` exato. Se o HEAD mudar durante ou após o review, a evidência é stale e deve ser descartada antes de READY.
 - **BR-024:** findings em fork não acionam Trusted Publisher nem remediação automática com escrita; o autor ou responsável humano produz novo HEAD e o fluxo reexecuta CI read-only e CODEX-01 base-trusted.
-- **BR-025:** CODEX-01 de fork não usa Codex Action/CLI em modo agentivo. Um broker confiável versionado na `main` obtém o diff/metadados pela API, normaliza o payload e chama a API OpenAI sem disponibilizar ao modelo shell, filesystem, comandos, tools/functions, subprocessos ou acesso ao ambiente do runner. Conteúdo não confiável nunca é interpolado em comando de shell; trafega apenas por JSON/stdin/HTTP como dado.
-- **BR-026:** o processo confiável que contém `OPENAI_API_KEY` para review de fork executa somente código da `main`, com menor privilégio possível, sem `sudo`/elevação e sem executar artefatos do fork. O segredo nunca é incluído no prompt, output, artifact ou log. Qualquer configuração que habilite ferramentas agentivas para esse reviewer é fail-closed.
+- **BR-025:** CODEX-01 de fork não usa Codex Action/CLI em modo agentivo. O broker de review, versionado na `main` e sem segredo do provedor, obtém o changeset de merge-base/HEAD via API Git, normaliza o payload e solicita inferência exclusivamente ao Budget Broker. O Budget Broker aplica quotas, reserva financeira global e chama a OpenAI; o modelo não recebe shell, filesystem, comandos, tools/functions, subprocessos ou acesso ao runner. Dados não confiáveis trafegam somente como payload estruturado, nunca interpolados em shell.
+- **BR-026:** apenas o processo isolado do Budget Broker, carregado da `main`, recebe `OPENAI_API_KEY` para qualquer review ou remediação paga. O CODEX-01 de fork e o Codex Remediator não recebem a chave nem credenciais delegadas, mesmo quando são jobs confiáveis. O Budget Broker opera com menor privilégio possível, sem `sudo`/elevação ou execução de artefatos do fork; jamais inclui o segredo em prompt, output, artifact ou log. Ferramentas agentivas no reviewer de fork são fail-closed.
 - **BR-027:** antes de uma chamada paga para fork, o runtime aplica trust gate. Autorização automática é restrita a `OWNER`, `MEMBER` ou `COLLABORATOR`; qualquer outro `author_association` exige aprovação explícita de maintainer vinculada ao PR antes da primeira chamada paga.
 - **BR-028:** reviews pagos de fork são idempotentes por `head.sha`: no máximo uma chamada CODEX-01 por SHA. Além disso, o baseline limita a 3 chamadas pagas por PR em janela móvel de 24h e 5 chamadas pagas por autor externo em janela móvel de 24h no repositório. A contabilização usa reservas duráveis, não apenas evidência posterior à chamada.
 - **BR-029:** trust gate ausente ou quota excedida bloqueia a chamada antes de consumir a API e produz `HUMAN_DECISION_REQUIRED`; eventual override humano deve ser explícito, auditável e vinculado ao PR/HEAD específico, sem desabilitar permanentemente as quotas.
@@ -232,7 +232,7 @@ Controles obrigatórios:
 - `pull_request_target`, quando usado para CODEX-01 de fork, fica restrito a workflow da base e é proibido de fazer checkout, importar action/script/configuração do HEAD ou interpolar conteúdo não confiável em shell;
 - o changeset de fork é obtido por API Git a partir do `merge_base_sha` com `head_sha`, tratado apenas como dado não confiável; `base_tip_sha` é metadado adicional;
 - o reviewer de fork usa integração OpenAI tool-less: nenhum shell, filesystem, tool/function call, subprocesso ou ambiente do runner é exposto ao modelo;
-- o broker que possui `OPENAI_API_KEY` executa somente código confiável da `main`, sem sudo/elevação e com o segredo fora de prompt, stdout/stderr e artifacts;
+- o Budget Broker isolado é o único processo que possui `OPENAI_API_KEY`, executa somente código confiável da `main`, sem sudo/elevação e mantém segredo fora de prompt, stdout/stderr e artifacts; jobs de review/remediação enviam somente requisições estruturadas ao broker;
 - trust gate, deduplicação por HEAD e quotas por PR/autor são avaliados antes da chamada paga;
 - a autorização de consumo vem exclusivamente de reserva persistida pelo Quota Broker após reconciliação da fila durável; a mera leitura de contadores ou a existência de um workflow pendente não autoriza a API;
 - pedidos de fork são persistidos antes do wake-up e sobrevivem a coalescência/cancelamento de workflows; reconciler periódico processa backlog remanescente;
@@ -397,6 +397,8 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - remediação não escreve `main`;
 - reviewer não publica código;
 - teste garante que Codex Action/CLI não possua credencial/rota direta capaz de contornar o Budget Broker;
+- teste negativo verifica a ausência de `OPENAI_API_KEY` (e de tokens delegados do provedor) no ambiente, outputs e permissões de Codex Remediator, CODEX-01 same-repo, CODEX-01 de fork e Trusted Publisher; somente o job isolado do Budget Broker pode obter o secret;
+- teste de integração bloqueia qualquer chamada paga quando um consumidor tenta acessar a API sem passar pelo Budget Broker;
 - limite monetário global falha fechado em qualquer condição desconhecida;
 - logs não expõem chave.
 
@@ -411,7 +413,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-002:** nenhum wake-up operacional humano é necessário.
 - **AC-003:** runtime é acionado/controlado pelo GitHub Actions.
 - **AC-004:** duas execuções concorrentes do mesmo PR não publicam duas remediações conflitantes.
-- **AC-005:** código/ambiente do fork não obtém `OPENAI_API_KEY` nem escrita privilegiada; o CODEX-01 base-trusted pode usar a chave apenas no contexto seguro da `main`, sem checkout/execução do fork.
+- **AC-005:** código/ambiente de fork, CODEX-01 base-trusted, CODEX-01 same-repo, Codex Remediator e Trusted Publisher não recebem `OPENAI_API_KEY` nem acesso direto à inferência paga; somente o Budget Broker isolado da `main` detém o segredo, sem checkout/execução de conteúdo do fork.
 - **AC-006:** em PR same-repo elegível, CI corrigível produz novo HEAD automaticamente; em PR de fork, remediação com escrita é proibida e o novo HEAD depende do autor ou responsável humano conforme BR-024.
 - **AC-007:** em PR same-repo elegível, finding corrigível do CODEX-01 produz novo HEAD automaticamente; em PR de fork, o finding bloqueia READY até que o autor ou responsável humano publique novo HEAD, sem Trusted Publisher.
 - **AC-008:** cada novo HEAD passa novamente por CI e CODEX-01.

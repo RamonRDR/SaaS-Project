@@ -206,11 +206,11 @@ Multi-tenancy de produto não muda.
 
 Segurança operacional:
 
-- `OPENAI_API_KEY` em GitHub Actions Secrets;
+- `OPENAI_API_KEY` em GitHub Actions Secrets, injetado exclusivamente no job isolado do Budget Broker (nunca em Codex Remediator, CODEX-01 same-repo/fork ou Trusted Publisher);
 - nenhum secret em forks;
-- jobs de remediação de IA com `OPENAI_API_KEY` exigem PR same-repo e guards de provenance;
+- jobs de remediação de IA e CODEX-01, inclusive same-repo, não recebem `OPENAI_API_KEY`; operam apenas por solicitações estruturadas ao Budget Broker. A elegibilidade same-repo e os guards de provenance permanecem obrigatórios para remediação com escrita;
 - CODEX-01 same-repo sem permissão de escrita;
-- CODEX-01 de fork pode usar `OPENAI_API_KEY` somente em broker base-trusted carregado da `main`, sem checkout do fork, sem execução de qualquer arquivo do PR, sem `contents: write` e sem expor shell/filesystem/tools ao modelo; o código confiável que contém a chave não recebe comandos derivados do diff e executa sem sudo/elevação;
+- CODEX-01 de fork usa broker de review base-trusted carregado da `main`, sem receber `OPENAI_API_KEY` ou token delegado. O broker obtém apenas dados do fork, sem checkout ou execução de arquivos externos, sem `contents: write` e sem shell/filesystem/tools expostos ao modelo. A chamada paga é feita exclusivamente pelo Budget Broker isolado, que recebe a chave, rejeita comandos derivados do diff e opera sem sudo/elevação;
 - Codex Remediator sem token GitHub com `contents: write`; ele produz somente patch/artefato estruturado;
 - Trusted Publisher separado, sem `OPENAI_API_KEY` e sem execução de Codex, é o único componente de remediação autorizado a `contents: write`;
 - antes do push, o Trusted Publisher valida same-repo confiável, HEAD esperado, ref de destino, escopo do patch, invariantes do contrato e denylist do control plane;
@@ -223,7 +223,7 @@ Segurança operacional:
 - um Quota Broker/drainer global da `main` reconcilia o journal e materializa a autorização como `RESERVED` antes da API; coalescência de workflows não apaga pedidos e um reconciler periódico garante eventual progresso;
 - o job de review de fork só executa para o único `consumer_run_id` que venceu a transição atômica `RESERVED → CONSUMED`; consumidores subsequentes encerram antes da API e consumo ambíguo após crash não permite nova chamada automática do mesmo SHA;
 - o broker enumera integralmente as árvores Git de merge-base/HEAD, busca todos os objetos alterados necessários e emite manifest/digest de completude com `base_tip_sha`, `merge_base_sha`, `head_sha`; qualquer truncamento, ausência, binário não revisável, objeto não suportado ou payload integral acima do limite resulta em `HUMAN_DECISION_REQUIRED`, sem CODEX-01 clean;
-- um Budget Broker exclusivo possui a chave do provedor e impõe, antes de toda chamada paga, orçamento mensal global em unidades monetárias inteiras, custo máximo pessimista baseado em preços versionados, tokens e número de requests/retries limitados;
+- exclusivamente o Budget Broker possui a chave do provedor, executa inferência paga e impõe orçamento mensal global em unidades monetárias inteiras, custo máximo pessimista baseado em preços versionados, tokens e número de requests/retries limitados; nenhum job consumidor pode carregar o secret, repassá-lo ou usar SDK/CLI com acesso direto ao provedor;
 - cada autorização monetária é `check + reserve` por CAS do ledger global; o total `committed + outstanding_max + new_max` não ultrapassa o limite. Jobs de Codex não possuem credencial nem endpoint que contorne o broker;
 - custo de resposta inconclusiva permanece reservado pelo máximo. Preço desconhecido, ledger indisponível ou orçamento não definido bloqueia execução. Alertas e hard limits da plataforma podem auxiliar, mas eventual enforcement tardio não é a garantia primária;
 - `main` fora da autoridade unattended;
