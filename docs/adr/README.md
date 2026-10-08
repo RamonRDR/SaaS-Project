@@ -105,8 +105,9 @@ Conteúdo em português do Brasil. Identificadores técnicos e exemplos de códi
 
 - **ADR-0011:** ID consumido por experimento privado de runtime unattended posteriormente descartado. O documento original não foi importado para o snapshot público e o ID não pode ser reutilizado.
 
-## Decisão em revisão
+## Decisão vigente e sucessora em revisão
 
 | ADR | Decisão | Revisão decisória | Parecer técnico atual | Status | Aceite humano |
 | --- | --- | ---: | --- | --- | --- |
-| [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended | 9 | Nova revisão pendente | `Proposed` | Pendente |
+| [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended, decisão histórica vigente | 7 | Pronto para aceite humano | `Accepted` | Registrado |
+| [ADR-0013](./ADR-0013-runtime-unattended-hardening.md) | Runtime unattended: budget global, merge-base e hardening de fork | 1 | Nova revisão pendente | `Proposed` | Pendente |

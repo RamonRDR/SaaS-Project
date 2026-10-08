@@ -5,13 +5,13 @@
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
 - **Status:** In Review
-- **Versão:** 1.0
+- **Versão:** 1.1
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-07
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012 rev.9
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (histórico aceito), ADR-0013 rev.1 (sucessora proposta)
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 1.0 substitui a proposta 0.9 após dois achados P1 adicionais na revisão de `ba1957ae`: o reviewer de fork agora calcula o changeset de **merge-base(base_tip, head)** até `head.sha`, e não por diferença direta entre as duas pontas; o runtime passa a exigir **controle financeiro global próprio e bloqueante** antes de toda chamada paga, inclusive remediação e review same-repo. A cotação pessimista de custo é reservada em ledger GitHub com operação atômica antes do consumo, incluindo quotas anteriores, impedindo chamadas sem teto verificável. Limites da plataforma OpenAI e alertas permanecem defesa adicional e não substituem o broker. A v0.8/rev.7 aprovada permanece apenas no histórico e não aprova v1.0/rev.9. A versão experimental privada v0.1 não foi importada ao Git público sanitizado.
+Esta versão 1.1 substitui a proposta 1.0 após dois achados P1 adicionais na revisão de `ba1957ae`: o reviewer de fork agora calcula o changeset de **merge-base(base_tip, head)** até `head.sha`, e não por diferença direta entre as duas pontas; o runtime passa a exigir **controle financeiro global próprio e bloqueante** antes de toda chamada paga, inclusive remediação e review same-repo. A cotação pessimista de custo é reservada em ledger GitHub com operação atômica antes do consumo, incluindo quotas anteriores, impedindo chamadas sem teto verificável. Limites da plataforma OpenAI e alertas permanecem defesa adicional e não substituem o broker. A aprovação anterior de SDD v0.8 e o aceite da ADR-0012 rev.7 permanecem históricos e não aprovam a SDD v1.1 ou a proposta sucessora ADR-0013 rev.1. A ADR-0012 volta a refletir fielmente o conteúdo aceito e só poderá ser marcada `Superseded` após o aceite humano da ADR-0013. A versão experimental privada v0.1 não foi importada ao Git público sanitizado.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
@@ -160,9 +160,10 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - **BR-042:** antes de habilitar o runtime, um responsável humano define orçamento mensal monetário global em unidade inteira mínima (por exemplo, centavos USD), mês-calendário UTC e catálogo versionado de preços/modelos/operações suportados. Sem limite positivo, preço conhecido, caps de entrada/saída ou forma verificável de contabilização, a chamada falha fechada em `BLOCKED_EXTERNAL`/`HUMAN_DECISION_REQUIRED`. Alertas e limites da plataforma não são tratados como o teto primário.
 - **BR-043:** o Budget Broker calcula **limite superior conservador** por chamada antes da API: máximo de tokens de entrada aceitos, máximo de saída explicitamente imposto, quantidade máxima de requisições e retries, tabelas de preços versionadas e quaisquer custos adicionais possíveis. Entrada ou output não limitado, preço desconhecido, custos não cobertos e fallback não cotado bloqueiam a chamada. Quotas de fork continuam sendo guardas adicionais.
 - **BR-044:** o ledger financeiro GitHub é fonte canônica global para todos os jobs/PRs e persiste `budget_period_utc`, `budget_limit_minor`, `committed_minor`, `reservation_id`, `max_cost_minor`, `consumer_run_id`, estado e versão. Sob exclusão atômica real (CAS por revisão de Git ref/ledger), a operação `check + reserve` só vence quando a soma de gastos realizados + reservas máximas não liberadas + nova reserva for <= orçamento mensal. `concurrency` sozinho não é mecanismo de atomicidade.
-- **BR-045:** a mesma seção crítica vincula a reserva financeira ao claim exclusivo da chamada; só um `consumer_run_id` vencedor obtém autorização. Em crash ou resultado ambíguo, o custo máximo reservado permanece comprometido; somente resposta terminal inequívoca com custo conciliado pode liberar saldo não utilizado. O reconciler nunca reutiliza reserva ambígua para nova chamada paga.
+- **BR-045:** o claim exclusivo da chamada executa CAS na mesma seção crítica do ledger financeiro e verifica **naquele momento** o mês-calendário UTC corrente em relógio confiável do Budget Broker. `reservation.budget_period_utc` deve ser igual ao período UTC vigente; caso contrário, negar o claim e exigir nova reserva no bucket correto, com nova validação atômica do orçamento. Apenas o `consumer_run_id` vencedor do claim para o período corrente pode prosseguir. A reserva de mês anterior permanece conservadoramente comprometida até conciliação terminal inequívoca e nunca é transferida, liberada ou reutilizada automaticamente. Em crash ou resultado ambíguo, o custo máximo permanece comprometido.
 - **BR-046:** limite configurado não pode ser elevado nem política de preços enfraquecida por PR, bot, comentário ou execução automatizada. Mudança de orçamento, mês/catálogo de preços ou permissão de bypass exige decisão humana auditável e controle de acesso; nenhuma chamada prossegue se o ledger estiver indisponível, inconsistente ou com versão inesperada.
 - **BR-047:** todos os fluxos pagos, inclusive remediação same-repo, passam por testes de concorrência global, ultrapassagem do teto, rollback de ledger, crash/timeout, virada de mês UTC e uso de modelo não precificado. Alertas/limites rígidos da plataforma são opcionais como defesa em profundidade e não substituem as verificações locais.
+- **BR-048:** imediatamente antes de emitir a requisição HTTP paga, o Budget Broker confere novamente o período UTC do claim contra o relógio confiável, preservando um vínculo atômico entre `reservation_id`, `consumer_run_id`, `budget_period_utc` e a autorização de envio. Se o mês mudar entre reserva, claim e dispatch, a chamada é cancelada antes do envio; o processo deve registrar nova reserva e novo claim no mês atual, com controle de quota/custo e sem reutilizar o claim antigo. A região de fronteira de mês deve ser protegida por janela de segurança configurada que impeça iniciar novas chamadas se não houver margem temporal para completar a validação e o envio no mesmo período; erros de relógio e incerteza temporal são fail-closed.
 
 ## 8. Permissões e multi-tenancy
 
@@ -307,7 +308,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-037 | dois PRs diferentes tentam consumir orçamento restante ao mesmo tempo | CAS do ledger financeiro autoriza apenas reservas cujo total máximo caiba no teto |
 | EDGE-038 | orçamento não configurado, preço desconhecido ou custo máximo ilimitado | bloquear antes da API |
 | EDGE-039 | resposta de custo ambígua ou crash após claim | manter `max_cost_minor` comprometido e negar retry automático |
-| EDGE-040 | virada de mês UTC ou alteração de configuração | bucket mensal explícito; nunca transferir reservas ambíguas ou aceitar alteração sem gate humano |
+| EDGE-040 | mês UTC muda após `RESERVED` e antes do claim | CAS `RESERVED → CONSUMED` só vence se o período da reserva coincidir com o mês UTC atual; exigir nova reserva no bucket corrente, sem transferir/liberar automaticamente reserva antiga |
+| EDGE-041 | mês UTC muda após claim e antes do dispatch HTTP | negar chamada antes do envio; revogar a autorização para dispatch antigo, gerar nova reserva/claim no período vigente com CAS e aplicar janela temporal de segurança |
+| EDGE-042 | relógio confiável indisponível, divergente ou próximo demais da virada | bloquear novas chamadas pagas e registrar motivo fail-closed |
 
 ## 16. Migration
 
@@ -359,7 +362,9 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - teste de diff de três pontos com base avançada após divergência, verificando `merge_base_sha` e ausência de alterações exclusivas da base;
 - teste sem ancestral comum, mudança de base_tip e HEAD stale bloqueando evidência;
 - reserva monetária global com CAS, preço versionado e tokens máximos efetivamente impostos para TODOS os consumidores pagos;
-- testes de budget: dois PRs concorrentes, gasto acima do limite, retries, custo incerto, crash e virada UTC;
+- testes de budget: dois PRs concorrentes, gasto acima do limite, retries, custo incerto, crash e virada UTC entre reserva e claim, e entre claim e dispatch HTTP;
+- teste com relógio controlado demonstra que claim de período anterior não autoriza custo no novo mês; novo período exige `check + reserve` por CAS, e a reserva antiga não é liberada automaticamente;
+- teste de janela de segurança em fronteira de mês, falha de relógio, drift e interrupção de dispatch comprova ausência de chamada paga;
 - schema de output do reviewer;
 - publicação em branch correta.
 
@@ -445,6 +450,8 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-034:** toda chamada paga, inclusive remediação e review same-repo, exige reserva CAS global anterior à chamada que respeite `committed_minor + sum(outstanding.max_cost_minor) + new.max_cost_minor <= budget_limit_minor`.
 - **AC-035:** duas execuções concorrentes não podem exceder o teto e crash após consumo ambíguo não devolve saldo nem habilita segunda chamada.
 - **AC-036:** alteração humana do orçamento é auditável; indisponibilidade/inconsistência do ledger, modelo sem preço ou custo sem teto resulta em fail-closed.
+- **AC-037:** no claim CAS e imediatamente antes do dispatch HTTP, o Budget Broker valida que `budget_period_utc` da autorização corresponde ao mês-calendário UTC atual; mudança de mês invalida a autorização antiga e exige nova reserva e claim no período atual, sem reaproveitar saldo antigo.
+- **AC-038:** testes de virada do mês UTC entre reserva, claim e dispatch, além de relógio incerto/janela de segurança, comprovam zero chamadas com autorização de bucket incorreto.
 
 ## 20. Evidências de validação esperadas
 
@@ -469,7 +476,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - conta/projeto OpenAI API com billing habilitado;
 - Codex Action/CLI/SDK suportado para CI;
 - ADR-0010 vigente;
-- ADR-0012 aceito antes da implementação.
+- ADR-0013 rev.1 aceita pelo responsável humano antes da implementação da arquitetura sucessora; a ADR-0012 rev.7 permanece vigente até então.
 
 ## 22. Riscos conhecidos
 
@@ -502,7 +509,7 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 ## 24. ADRs necessários ou relacionados
 
 - **ADR necessário:** Sim
-- **Referências:** ADR-0010, ADR-0012
+- **Referências:** ADR-0010, ADR-0012 (histórico aceito), ADR-0013 (proposta sucessora)
 - **Motivo:** mover o runtime para GitHub Actions + Codex, introduzir API paga e definir fronteiras de privilégio é decisão transversal e durável.
 
 ## 25. Histórico de revisão
@@ -519,22 +526,23 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 | 0.8 | 2026-10-07 | Product & SDD | substitui `concurrency` como fila por journal durável + drainer/reconciler idempotente; versão aprovada humanamente no PR #2 |
 | 0.9 | 2026-10-07 | Product & SDD | exige completude integral do payload de fork e claim atômico exclusivo da reserva antes da API |
 | 1.0 | 2026-10-08 | Product & SDD | corrige diff para merge-base/head e exige orçamento global independente, atômico e bloqueante antes de toda chamada paga |
+| 1.1 | 2026-10-08 | Product & SDD | revalida mês UTC no claim e no dispatch; restaura ADR-0012 imutável e propõe ADR-0013 como sucessora |
 
 ## 26. Aprovação
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Nova revisão pendente após P1 de merge-base e teto global efetivo
-- **Versão revisada:** Não aplicável à v1.0 até conclusão do novo ciclo
+- **Parecer de `review-sdd`:** Nova revisão pendente após P1 de revalidação de mês UTC e P2 de imutabilidade de ADR aceita
+- **Versão revisada:** Não aplicável à v1.1 até conclusão do novo ciclo
 - **Evidência técnica anterior:** v0.8 teve CODEX-01 clean no HEAD `85a7541646ce22c5d9a2784c8a6623e42675890a`, mas o review posterior do HEAD de formalização `8b66bb441710c2a859cb21fb7f0fed077c8d0379` revelou dois P1 materiais
-- **Pendências bloqueantes:** validar diff por merge-base/HEAD e Budget Broker global atômico sem bypass
+- **Pendências bloqueantes:** testar novo período UTC no claim/dispatch e confirmar ADR-0012 restaurada e ADR-0013 sucessora separada
 - **Pendências não bloqueantes:** definir modelo e hard budget de API antes do canary
 
 ### Gate humano
 
 - **Aprovada:** Não para a versão atual
-- **Versão aprovada:** Não aplicável à v1.0
+- **Versão aprovada:** Não aplicável à v1.1
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Não aplicável à v1.0
+- **Data:** Não aplicável à v1.1
 - **Registro da aprovação atual:** Pendente
-- **Aprovação histórica preservada:** v0.8, PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); não válida para v1.0 por mudanças materiais
+- **Aprovação histórica preservada:** SDD v0.8 e ADR-0012 rev.7, PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); não aprovam SDD v1.1/ADR-0013 rev.1
