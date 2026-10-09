@@ -1,0 +1,45 @@
+name: Claim and Budget Lab (no paid API)
+
+on:
+  push:
+    branches:
+      - experiment/claim-budget-lab
+    paths:
+      - "experiments/claim_budget_lab/**"
+      - ".github/workflows/claim-budget-lab.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulated-protocol:
+    name: State and concurrency tests (mock only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPATH: "."
+
+    steps:
+      - name: Checkout experimental branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Report Python runtime
+        run: python3 --version
+
+      - name: Execute simulated state matrix
+        run: python3 -m unittest discover -s experiments/claim_budget_lab -p 'test_*.py' -v
+
+      - name: Publish experiment limits
+        if: always()
+        run: |
+          {
+            echo "## Claim / Budget Lab"
+            echo ""
+            echo "- Simulated provider only, no OpenAI calls."
+            echo "- Python in-memory CAS is **not** proof of GitHub atomicity."
+            echo "- No merge, no edits to PR #2."
+            echo "- Branch: `experiment/claim-budget-lab`"
+          } >> "$GITHUB_STEP_SUMMARY"
