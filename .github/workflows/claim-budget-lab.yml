@@ -43,3 +43,73 @@ jobs:
             echo "- No merge, no edits to PR #2."
             echo '- Branch: experiment/claim-budget-lab'
           } >> "$GITHUB_STEP_SUMMARY"
+
+
+  independent-workers:
+    name: Separate runner / ${{ matrix.worker }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        worker: [alpha, beta]
+    env:
+      PYTHONPATH: "."
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout trusted experiment
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Create independent proposal and simulate failure
+        run: |
+          python3 -m experiments.claim_budget_lab.distributed_protocol worker \
+            --worker "$WORKER" --head "$GITHUB_SHA" \
+            --run "$GITHUB_RUN_ID" --out "out/$WORKER.json"
+        env:
+          WORKER: ${{ matrix.worker }}
+
+      - name: Upload immutable worker proposal
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proposal-${{ matrix.worker }}
+          path: out/${{ matrix.worker }}.json
+          retention-days: 2
+          if-no-files-found: error
+
+  reconcile-workers:
+    name: Coordinator / read-only artifact reconciliation
+    needs: [independent-workers]
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      PYTHONPATH: "."
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout trusted experiment
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download both immutable proposals
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: proposal-*
+          path: inbox
+          merge-multiple: true
+
+      - name: Reconcile with budget cap and fault injection
+        run: |
+          python3 -m experiments.claim_budget_lab.distributed_protocol reconcile \
+            --inbox inbox --head "$GITHUB_SHA" --run "$GITHUB_RUN_ID" \
+            --out out/distributed-ledger.json
+
+      - name: Preserve reconciled evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: reconciled-ledger
+          path: out/distributed-ledger.json
+          retention-days: 2
+          if-no-files-found: error
