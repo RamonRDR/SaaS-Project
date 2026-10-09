@@ -34,6 +34,17 @@ As tentativas perdedoras foram reportadas pelo conector como **`UNKNOWN: GithubG
 
 Os commits irmãos criados podem permanecer como objetos Git não referenciados. Isso não acrescenta branches e não interfere no PR #2.
 
+## Efeito colateral confirmado: write no ledger pode acordar workflows
+
+Cada um dos commits de ledger observados na branch experimental disparou uma execução `push` do GitHub Actions, pois o workflow tem filtro para `experiments/claim_budget_lab/**`. Exemplos:
+
+- Claim vencedor `14bc554b` → run [#37870020642](https://github.com/RamonRDR/SaaS-Project/actions/runs/37870020642)
+- Primeira reserva `2fbe3e1c` → run [#37870174739](https://github.com/RamonRDR/SaaS-Project/actions/runs/37870174739)
+- Reserva `op-04`, `0ab1807b` → run [#37870351587](https://github.com/RamonRDR/SaaS-Project/actions/runs/37870351587)
+
+Todos concluíram com `success`, mas esse comportamento tem implicação de custo/volume/loops.
+**Para produção:** manter ledger em referência confiável dedicada, fora de filtros de `push` que acordem o orquestrador; o drainer/reconciler deve reagir apenas a sinais intencionais, nunca a cada commit do próprio ledger. A ausência de gatilhos acidentais também precisará de teste E2E.
+
 ## DE → PARA para a arquitetura
 
 **DE:** regras de claim específicas de fork, claims ausentes para same-repo, reserva financeira antes de escolher o vencedor, hipóteses de transação distribuída e interpretação da resposta da API como verdade suficiente.
