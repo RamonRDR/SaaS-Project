@@ -1,0 +1,109 @@
+{
+  "schema": "cas-experiment.v1",
+  "repository": "RamonRDR/SaaS-Project",
+  "branch": "experiment/claim-budget-lab",
+  "date_utc": "2026-10-09",
+  "evidence_scope": "GitHub remote ref mutation via authorized connector, not multiple independent Actions runners",
+  "initial_head": "d40b32aa41912b1605124f79978a5a5fb919fee3",
+  "claim": {
+    "request_id": "claim-probe-001",
+    "same_parent": "d40b32aa41912b1605124f79978a5a5fb919fee3",
+    "candidates": [
+      {
+        "id": "worker-A",
+        "sha": "14bc554b956937d60390237f8fba4c349938fb86"
+      },
+      {
+        "id": "worker-B",
+        "sha": "fbcdcdc09a72533e16839e811978785ea55c0cac"
+      }
+    ],
+    "observed_winner": "worker-A",
+    "observed_winning_sha": "14bc554b956937d60390237f8fba4c349938fb86",
+    "other_connector_result": "UNKNOWN GraphQL exception, no observed ref mutation",
+    "readback_owner": "worker-A",
+    "stale_sibling_retry": "UNKNOWN error, HEAD unchanged"
+  },
+  "budget": {
+    "shared_parent": "14bc554b956937d60390237f8fba4c349938fb86",
+    "initial_proposals": [
+      {
+        "id": "op-01",
+        "sha": "2fbe3e1c27e811ea3a5fe70491eb73478328381e"
+      },
+      {
+        "id": "op-02",
+        "sha": "c3df940536caa08333d805ac4ef77bc04a6a6119"
+      },
+      {
+        "id": "op-03",
+        "sha": "4cc4cde442c242cba27ee0e3fdc7cc741c23d8c9"
+      },
+      {
+        "id": "op-04",
+        "sha": "c69a2236fa29dc58590fea2a96eafc2b62d0576c"
+      },
+      {
+        "id": "op-05",
+        "sha": "5ae4bdeacedc55b752839ee8b66204196fb2acc3"
+      },
+      {
+        "id": "op-06",
+        "sha": "b11617e1e3405e26ecf8cfb81ca7fd3acf258596"
+      }
+    ],
+    "initial_observed_winner": "op-01",
+    "competing_connector_failures": "five UNKNOWN GraphQL errors; explicit HTTP 409/422 not available",
+    "reconciliation_commits": [
+      {
+        "id": "op-02",
+        "sha": "2a3ce302415b2d9c151768af8a14be7fb414ca23"
+      },
+      {
+        "id": "op-03",
+        "sha": "d2de15eaa5399b22f9bcd5ccbe2c4e40c760b28d"
+      },
+      {
+        "id": "op-04",
+        "sha": "0ab1807b851638ceef2114539a55fd79faa31568"
+      }
+    ],
+    "ledger_revision": 5,
+    "budget_limit_minor": 4,
+    "observed_total_minor": 4,
+    "observed_reservation_ids": [
+      "op-01",
+      "op-02",
+      "op-03",
+      "op-04"
+    ],
+    "application_policy_denied_before_write": [
+      "op-05",
+      "op-06"
+    ],
+    "final_observed_sha": "0ab1807b851638ceef2114539a55fd79faa31568"
+  },
+  "stale_expected_descendant": {
+    "old_expected_sha": "14bc554b956937d60390237f8fba4c349938fb86",
+    "actual_before": "0ab1807b851638ceef2114539a55fd79faa31568",
+    "descendant_candidate_sha": "7488657d88b4ca65ca0476a8925d958d8245daa1",
+    "connector_result": "UNKNOWN GraphQL exception",
+    "actual_after": "0ab1807b851638ceef2114539a55fd79faa31568",
+    "head_changed": false
+  },
+  "controls": {
+    "ref_update_force": false,
+    "expected_sha_used": true,
+    "paid_ai_calls": 0,
+    "modified_main": false,
+    "modified_pr2": false,
+    "cleanup_note": "No temporary refs created; existing experimental branch contains the ledger and witnesses",
+    "caveats": [
+      "UNKNOWN connector errors do not establish precise GitHub API HTTP conflict semantics",
+      "Promise.all requests do not independently prove simultaneous processing by GitHub",
+      "Fast-forward sibling conflict and expected-sha observed behavior do not prove atomic multi-ref transactions",
+      "No independent runner-to-runner contention test yet",
+      "No crash durability or paid provider dispatch tested"
+    ]
+  }
+}

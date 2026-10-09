@@ -86,7 +86,7 @@ Workflow em `.github/workflows/claim-budget-lab.yml`:
 - comando: `python3 -m unittest discover -s experiments/claim_budget_lab -p 'test_*.py' -v`;
 - evidência: conclusão, logs e resumo no run de GitHub Actions.
 
-O workflow **não** faz merge, não cria PR e não altera `docs/PROJECT_STATUS.md`.
+O workflow **não** faz merge, não cria PR e não altera `docs/PROJECT_STATUS.md`. A prova com Git refs foi realizada pela conexão autorizada do GitHub, deixando o workflow apenas com `contents: read`.
 
 ## Limitações e próximos gates
 
@@ -97,8 +97,8 @@ entre a última consulta UTC e a aceitação da cobrança pelo provedor.
 
 Antes de aprovar a arquitetura definitiva será necessário:
 
-1. Experimento próprio de Git-ref CAS real, com refs descartáveis e permissões mínimas, em revisão de segurança separada.
-2. Testes E2E de persistência, multi-run, concorrência distribuída e falhas de GitHub API.
+1. **Primeira evidência real de Git refs concluída via conector**, sem token de escrita em Actions. Consultar [CAS_REAL_EVIDENCE.md](./CAS_REAL_EVIDENCE.md) e [cas-real-evidence.json](./cas-real-evidence.json). Ainda não comprova CAS distribuído entre runners.
+2. Testes E2E com dois runners independentes, fault injection, timeouts e recuperação de erro de API com leitura posterior obrigatória.
 3. Verificação prática da janela de fronteira UTC e do custo/token cap do Budget Broker real.
 4. Revisão da SDD v1.2 e ADR-0014 rev.1 baseada nessas evidências, com aprovação/aceite humano.
 5. Novo Codex Review no HEAD final do PR #2, gates e autorização humana de merge.
