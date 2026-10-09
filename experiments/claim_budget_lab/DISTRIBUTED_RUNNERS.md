@@ -16,6 +16,26 @@ Dois jobs de GitHub Actions, em **runners independentes**, geram propostas a par
 
 O resultado fica disponível no artefato `reconciled-ledger` do workflow, além dos logs e do Job Summary.
 
+## Execução verificada no GitHub
+
+- **Workflow:** [Claim and Budget Lab, run #37871046739](https://github.com/RamonRDR/SaaS-Project/actions/runs/37871046739)
+- **HEAD:** `e4a9566da6ee1da178218e8b9e939c73a2eb1eef`.
+- **Resultado:** `success`, **32 testes / 32 aprovados**.
+- **Worker alpha:** job `113628973339`, `success`; artefato `proposal-alpha` ID `11590706259`.
+- **Worker beta:** job `113628973600`, `success`; artefato `proposal-beta` ID `11590591640`.
+- **Coordenador:** job `113629008686`, `success`; artefato `reconciled-ledger` ID `11589859828`.
+- **Resultado em log:** `DISTRIBUTED_PROPOSALS_PASSED: 2 independent jobs, 1 claim, 4/4 budget, 2 denied`.
+- **Desempate:** worker `alpha`, pela política determinística simulada; o resultado não afirma CAS real da referência Git.
+- **Injeção de falhas:** `UNKNOWN_AFTER_PERSIST` e `req-lost` simuladas; nenhum timeout real de transporte foi executado.
+
+### Falha encontrada e corrigida na própria suíte
+
+A execução inicial [#37871003516](https://github.com/RamonRDR/SaaS-Project/actions/runs/37871003516) demonstrou um problema de isolamento: uma lista `requests` em uma proposta era referência ao fixture global e um teste de adulteração a modificava, contaminando um teste seguinte. Os **dois jobs independentes e o reconciliador** já tinham passado, mas a suíte falhou em 1 dos 32 testes. O commit `e4a9566` corrigiu isso copiando os dados por worker, e o run #37871046739 passou integralmente.
+
+### Resultado arquitetural
+
+O teste confirma que Jobs Actions independentes conseguem publicar evidências imutáveis e que um reconciliador consegue processá-las fail-closed sem permissão Git de escrita. Isto sugere um modelo **multi-produtor / escritor único** para filas de entrada. Para reservas financeiras de produção, ainda precisamos de armazenamento com CAS real comprovado, recuperação de erros ambíguos e persistência entre runs, antes de permitir chamadas pagas.
+
 ## Limitações, sem atalhos semânticos
 
 1. Os runners são independentes, mas **não disputam diretamente uma ref Git**. Eles publicam artefatos imutáveis e um coordenador aplica mudanças localmente. Não equivale a testar CAS do ledger persistido entre runners.

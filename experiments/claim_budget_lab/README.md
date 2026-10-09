@@ -88,6 +88,16 @@ Workflow em `.github/workflows/claim-budget-lab.yml`:
 
 O workflow **não** faz merge, não cria PR e não altera `docs/PROJECT_STATUS.md`. A prova com Git refs foi realizada pela conexão autorizada do GitHub, deixando o workflow apenas com `contents: read`.
 
+## Segundo experimento: runners independentes
+
+Validamos dois jobs GitHub Actions independentes, cada um publicando seu próprio artefato imutável. Um terceiro job realizou a reconciliação sem token de escrita, com falhas injetadas: **32 testes aprovados** no [run #37871046739](https://github.com/RamonRDR/SaaS-Project/actions/runs/37871046739).
+
+- [Relatório com jobs, artefatos, limitações e descoberta do isolamento de fixtures](./DISTRIBUTED_RUNNERS.md).
+- [Modelo do protocolo distribuído com dados determinísticos](./distributed_protocol.py).
+- [Testes automatizados de validação de payload e reconciliação](./test_distributed_protocol.py).
+
+Esse teste **não** executou duas escritas paralelas no mesmo ledger Git remoto. Falta validar CAS distribuído em condições reais antes da implementação de pagamento automatizado.
+
 ## Limitações e próximos gates
 
 **Importante:** o `SimulatedCASLedger` modela o comportamento esperado com
