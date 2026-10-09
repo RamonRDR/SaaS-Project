@@ -5,13 +5,13 @@
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
 - **Status:** In Review
-- **Versão:** 1.3
+- **Versão:** 1.4
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-09
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (histórico, `Superseded`), ADR-0013 rev.1 (`Accepted`, vigente), ADR-0014 rev.2 (`Proposed`, sucessora)
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (histórico, `Superseded`), ADR-0013 rev.1 (`Accepted`, vigente), ADR-0014 rev.3 (`Proposed`, sucessora)
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 1.3 consolida o P1/P2 do Codex Review no HEAD `a58a1f7` e a prova real `RamonRDR/SaaS-CAS-Lab` run #37873320199. O claim de inferência paga passa a ser UNIVERSAL para fork, same-repo CODEX-01 e Codex Remediator; quotas adicionais valem apenas para fork. O orçamento exige writer único global confiável e recuperação fail-closed; Git PATCH `force:false` NÃO é CAS transacional de geração (teste aceitou geração stale 5→2 com HTTP 200). O claim lógico não é refeito na virada UTC, somente a autorização financeira pode ser renovada após prova de não-envio. SDD v1.1 e ADR-0013 rev.1 já aceitas permanecem históricas; SDD v1.3 e ADR-0014 rev.2 exigem novo parecer e decisão humana antes de vigorar.
+Esta versão 1.4 resolve três findings novos do Codex no HEAD `a052482`: ingresso durável ANTES do wake-up sem depender do writer financeiro, reentrada estritamente no dispatcher confiável da `main`, e retomada segura do mesmo claim lógico após crash comprovadamente anterior a qualquer reserva/envio. Preserva a arquitetura single-writer, claim universal e o contraexemplo CAS-Lab 5→2 de v1.3. SDD v1.1 e ADR-0013 rev.1 aceitas não são reescritas; SDD v1.4 e ADR-0014 rev.3 aguardam parecer e decisão humana.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
@@ -76,13 +76,13 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - CODEX-01 como review independente do HEAD exato;
 - CODEX-01 base-trusted para forks, executado por broker determinístico e tool-less da `main`, sem checkout, execução do código externo ou ferramentas agentivas;
 - trust gate + quotas/idempotência antes de qualquer chamada paga disparada por fork;
-- fila durável de solicitações de review de fork no GitHub, criada antes de qualquer drainer/wake-up;
+- ingresso durável separado do writer financeiro, operado por código trusted da `main` com permissão mínima `issues:write` em issue de inbox dedicado, antes de wake-up; reconciler periódico também rederiva intents elegíveis de PR/HEAD;
 - drainer base-trusted que reconcilia fila durável, quotas adicionais para fork e solicita claim UNIVERSAL ao escritor global;
 - prova de completude do payload de fork derivado das árvores do **merge-base** e HEAD exatos, com base_tip registrada como metadado;
 - Budget Broker global com writer único efetivo, idempotência, reserva pessimista e reconciliação; não presumir CAS de valor/versão por `force:false`;
 - publicação automática de commits apenas na branch elegível do PR same-repo e somente pelo Trusted Publisher;
 - dispatcher confiável previamente instalado na `main` como etapa de bootstrap;
-- reentrada explícita via `workflow_dispatch` ou `repository_dispatch` atendida pelo dispatcher já presente na branch padrão;
+- reentrada exclusiva no dispatcher confiável da `main`: `repository_dispatch` no default branch ou `workflow_dispatch` com `ref: main` explícito; PR/HEAD como dados, nunca scripts/permissions do PR;
 - secrets via GitHub Actions Secrets;
 - proteção específica para forks e conteúdo não confiável;
 - anti-loop por causa raiz;
@@ -118,7 +118,7 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 
 - **BR-001:** o runtime só opera em PR com `ORCHESTRATOR_MODE: A` e `CONTROL_ISSUE` válido.
 - **BR-002:** PR originado de fork e seus jobs consumidores nunca recebem `OPENAI_API_KEY`, token com escrita ou secret privilegiado. O reviewer base-trusted, carregado da `main`, prepara o payload sem checkout nem execução de conteúdo do fork e solicita inferência ao Budget Broker isolado; somente o Budget Broker recebe `OPENAI_API_KEY` e realiza a chamada paga após os gates.
-- **BR-003:** jobs com escrita Git só operam em branch do mesmo repositório e origem considerada confiável. O único job privilegiado permitido para fork é o CODEX-01 base-trusted, limitado a leitura de repositório/PR e publicação de evidência de review, sem `contents: write`.
+- **BR-003:** jobs de PR/fork não confiáveis nunca recebem token com escrita. **Exceções trusted exclusivamente da `main`**: intake mínimo para Issue inbox com `issues:write` e `contents:read`, sem secret OpenAI ou execução de PR/fork; Budget Broker/writer e Trusted Publisher com privilégios separados e gates rigorosos. CODEX-01 de fork continua read-only para conteúdo Git e sem execução de fork. Token Git não é delimitado por branch: toda operação privilegiada deve verificar ref, origem e identidade.
 - **BR-004:** toda execução começa reconciliando PR, HEAD, checks, estado e evidências atuais.
 - **BR-005:** `concurrency` por PR com `cancel-in-progress:false` é auxiliar. Mutação do ledger de claim/finanças exige exclusão de writer global entre TODOS os PRs/workflows. Grupo global de Actions não é fila durável, pode substituir run pending, nem fornece CAS de versão; precisa de prova E2E de exclusão e recuperação.
 - **BR-006:** novo HEAD invalida CI, review, READY e autorização associados ao HEAD anterior.
@@ -130,8 +130,8 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - **BR-012:** o Trusted Publisher só pode publicar na branch corrente do PR elegível; nunca diretamente na `main`.
 - **BR-013:** a mesma causa raiz admite no máximo 3 tentativas automáticas antes de `LOOP_ESCALATION_REQUIRED`.
 - **BR-014:** ausência ou ambiguidade de evidência resulta em fail-closed.
-- **BR-015:** após publicar novo HEAD, o runtime inicia explicitamente o próximo ciclo por dispatch suportado, sem depender de recursão implícita de eventos gerados por `GITHUB_TOKEN`.
-- **BR-016:** o workflow que recebe o dispatch de reentrada deve existir previamente na branch padrão. A implementação adota bootstrap em merge anterior ao canary para instalar esse dispatcher confiável na `main`.
+- **BR-015:** o Trusted Publisher solicita reentrada somente ao dispatcher confiável versionado na `main`; para `workflow_dispatch`, `ref: main` é obrigatório, nunca omitido/branch do PR; `repository_dispatch` é recebido pelo workflow da branch padrão. Reconciliar HEAD após o evento, sem depender de push com GITHUB_TOKEN.
+- **BR-016:** workflow de reentrada é instalado na `main` por bootstrap aprovado antes do canary; validar ref/identidade do dispatcher antes de executar código privilegiado. Mesmo PR same-repo não pode fornecer workflow/ações/scripts/secrets de ref de PR via dispatch.
 - **BR-017:** `READY_FOR_HUMAN_MERGE` só é emitido com CI verde, CODEX-01 limpo e evidências do mesmo HEAD.
 - **BR-018:** merge principal exige autorização humana explícita vinculada ao PR/HEAD.
 - **BR-019:** PHASE-0-G permanece bloqueada até canary E2E e `DONE_ALLOWED`.
@@ -145,17 +145,17 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 - **BR-027:** antes de uma chamada paga para fork, o runtime aplica trust gate. Autorização automática é restrita a `OWNER`, `MEMBER` ou `COLLABORATOR`; qualquer outro `author_association` exige aprovação explícita de maintainer vinculada ao PR antes da primeira chamada paga.
 - **BR-028:** reviews pagos de fork são idempotentes por `head.sha`: no máximo uma chamada CODEX-01 por SHA. Além disso, o baseline limita a 3 chamadas pagas por PR em janela móvel de 24h e 5 chamadas pagas por autor externo em janela móvel de 24h no repositório. A contabilização usa reservas duráveis, não apenas evidência posterior à chamada.
 - **BR-029:** trust gate ausente ou quota excedida bloqueia a chamada antes de consumir a API e produz `HUMAN_DECISION_REQUIRED`; eventual override humano deve ser explícito, auditável e vinculado ao PR/HEAD específico, sem desabilitar permanentemente as quotas.
-- **BR-030:** TODA solicitação paga elegível (fork, same-repo CODEX-01, Remediator) é persistida antes do wake-up. Chave lógica estável `operation_key = repository/pr/head_sha/operation_kind/authorized_attempt` e `request_id` derivado dela, sem `workflow_run_id`. No fork CODEX-01 admite somente `authorized_attempt=0` para mesmo HEAD, com `author_id` vinculado; reentradas não criam novos gastos.
-- **BR-031:** fila/journal e ledger financeiro são recursos GitHub confiáveis com mutação exclusivamente pelo writer global. Estado universal de operação `PENDING → ELIGIBLE → CLAIMED → BUDGET_RESERVED → DISPATCH_AUTHORIZED → SENT/AMBIGUOUS → SETTLED/BLOCKED` e prova durável por `operation_key`, HEAD, consumer vencedor, período UTC, reserva e provenance; quota de fork `RESERVED → CONSUMED` é guarda adicional, não claim separado. Nunca persistir secrets.
+- **BR-030:** todas as solicitações pagas elegíveis (fork, same-repo CODEX-01, Remediator) criam `operation_key=repo/pr/head_sha/operation_kind/authorized_attempt` determinístico. Um **trusted intake mínimo separado do escritor financeiro** persiste comentário JSON machine-readable em Issue de inbox dedicado, com `issues:write` e `contents:read` apenas, **antes** do wake-up; nenhum checkout, script ou configuração do PR é executado. Ingresso sem confirmação/readback bloqueia o wake-up; comentários repetidos deduplicam por operation_key.
+- **BR-031:** separar **inbox de intents** (comentários de Issue de controle, criados pelo intake trusted com permissão issues:write, sem mutar ledger) de **ledger canônico** (claim, quota, orçamento, dispatch, mutável SOMENTE pelo writer global). Reconciler verifica identidade do autor trusted, schema, PR/HEAD, operation_key, páginas completas e provenance. Comentários inválidos, modificados ou truncados falham fechados. Somente ledger governa estados `PENDING → ELIGIBLE → CLAIMED → BUDGET_RESERVED → DISPATCH_AUTHORIZED → SENT/AMBIGUOUS → SETTLED/BLOCKED`.
 - **BR-032:** o drainer base-trusted reconcilia backlog persistido e revalida origem/HEAD/trust/quota; apenas o writer global serializado decide claim, quota adicional e reserva monetária. Jobs consumidores não mutam ledger e não recebem secret do provedor. Backlog não é equiparado a um workflow run.
-- **BR-033:** wake-ups/dispatch são best-effort; reconciliação periódica na `main` varre pedidos duráveis mesmo quando pending de `concurrency` é substituído. Gatilhos `push` do ledger são isolados de reentrada; comentários, payload do evento e logs não são fonte suficiente para execução.
+- **BR-033:** wake-up é best-effort APÓS persistência no inbox. Reconciler periódico trusted da `main` varre inbox E PRs/HEAD elegíveis para reparar evento perdido antes de ingresso; paginação/ACK desconhecidos exigem readback e fail-closed. Pending Actions coalescido não apaga pedido; writes do ledger não geram push-trigger recursivo.
 - **BR-034:** quota de fork tem `quota_reservation_id` estável por autor/PR/HEAD e limites atuais (3/PR/24h, 5/autor externo/24h). Reserva financeira de TODOS os consumidores deriva de `operation_key + budget_period_utc + model + operation`. Uma nova execução GitHub não muda a chave e não autoriza outro envio; estado ambíguo é fail-closed.
-- **BR-035:** o writer global realiza claim UNIVERSAL `ELIGIBLE → CLAIMED` para fork, same-repo CODEX-01 e Remediator, persistindo o ÚNICO `consumer_run_id` por `operation_key`. No fork, `RESERVED → CONSUMED` de quota é executado sob a mesma exclusão, não é um segundo claim independente. Somente vencedor recebe budget; perdedores sem reserva/API. Crash claim→budget não concede retry pago automático.
+- **BR-035:** claim universal por `operation_key` é único para fork/same-repo/Remediator, decidido pelo writer global; quota fork `RESERVED → CONSUMED` é adicional. Persistir owner executante `consumer_run_id` e `fencing_epoch` monotônico. Se worker morrer ANTES de qualquer reserva financeira, autorização ou dispatch, writer pode transferir execução sem novo claim somente após readback autoritativo provar ausência desses estados, confirmar lease anterior encerrado/expirado, incrementar epoch e impedir worker antigo de pagar. Qualquer ambiguidade bloqueia.
 - **BR-036:** o reviewer de fork não usa o endpoint `pulls/{pr}/files` nem diff textual do PR como prova de completude. Ele fixa `base_tip_sha` e `head_sha`, resolve por API Git confiável o **merge-base commit** de ambos, verifica que é ancestral comum e constrói os manifests canônicos das árvores de `merge_base_sha` e `head_sha`. `base_tip_sha` é apenas metadado adicional e não é o lado esquerdo do diff. Ausência ou ambiguidade de merge-base, resposta truncada ou HEAD divergente bloqueia CODEX-01.
 - **BR-037:** o changeset do PR é calculado exclusivamente por comparação das árvores completas de `merge_base_sha` e `head_sha` (sem usar a ponta `base_tip_sha` para diferenças). Para cada path alterado o broker obtém os objetos exigidos e registra adição, modificação, exclusão, modo e submódulo. A comparação deve refletir o diff de três pontos do PR, mesmo que a branch base avance após a divergência; conflito e mergeabilidade continuam gates separados.
 - **BR-038:** antes do modelo, o broker produz evidência de completude com `base_tip_sha`, `merge_base_sha`, `head_sha`, total de paths alterados, lista canônica before/after com object SHAs/modes, tamanhos e digest do payload normalizado. A evidência clean exige associação ao mesmo par merge-base/HEAD; alteração da base_tip exige reconciliação de CI/mergeabilidade antes de READY.
 - **BR-039:** conteúdo binário não revisável, objeto Git não suportado, blob indisponível, qualquer truncamento detectado ou payload integral que exceda o limite configurado de review resulta em fail-closed e `HUMAN_DECISION_REQUIRED`. É proibido truncar, amostrar, omitir arquivos ou enviar apenas prefixo do diff e ainda considerar CODEX-01 válido.
-- **BR-040:** falha/timeout do vencedor após claim, reserva ou dispatch ambíguo mantém claim e custo máximo comprometidos, sem reverter `CONSUMED` de fork nem repetir chamada por reentrada. Reconciler exige evidência terminal inequívoca antes de recuperação ou escala decisão humana.
+- **BR-040:** reserva/dispatch possivelmente iniciado ou envio incerto preserva teto financeiro e bloqueia retry automático. Exceção para claim sem reserva/dispatch: reconciler pode solicitar takeover controlado do MESMO claim sob writer global, com prova negativa integral, fencing epoch novo e invalidação do worker antigo, nunca outro claim/quota CONSUMED.
 - **BR-041:** TODA chamada de IA paga (fork, same-repo e Remediator) exige `operation_key`, claim universal e autorização financeira no mesmo Budget Broker trusted da `main`. Só Budget Broker recebe `OPENAI_API_KEY`; consumidores não usam SDK/CLI/Action para bypass. Sem writer global exclusivo efetivamente comprovado, bloquear API paga.
 - **BR-042:** antes de habilitar o runtime, um responsável humano define orçamento mensal monetário global em unidade inteira mínima (por exemplo, centavos USD), mês-calendário UTC e catálogo versionado de preços/modelos/operações suportados. Sem limite positivo, preço conhecido, caps de entrada/saída ou forma verificável de contabilização, a chamada falha fechada em `BLOCKED_EXTERNAL`/`HUMAN_DECISION_REQUIRED`. Alertas e limites da plataforma não são tratados como o teto primário.
 - **BR-043:** o Budget Broker calcula **limite superior conservador** por chamada antes da API: máximo de tokens de entrada aceitos, máximo de saída explicitamente imposto, quantidade máxima de requisições e retries, tabelas de preços versionadas e quaisquer custos adicionais possíveis. Entrada ou output não limitado, preço desconhecido, custos não cobertos e fallback não cotado bloqueiam a chamada. Quotas de fork continuam sendo guardas adicionais.
@@ -168,9 +168,12 @@ O caminho saudável deve chegar sozinho a `READY_FOR_HUMAN_MERGE`. A autorizaç�
 
 - **BR-050:** writer único serializa TODAS as mutações de quota, claim e dinheiro entre workflows e PRs, sem executar código de fork nem receber conteúdo de controle não confiável. Concurrency group global pode ser auxiliar, não prova transação nem fila. Inexistência de exclusão efetiva bloqueia calls.
 - **BR-051:** cada transição financeira lê e verifica ledger imediatamente antes de gravar SOB exclusão global, persiste uma geração lógica monotônica e faz readback após retorno ambíguo. Não permitir fast-forward com snapshot lógico regressivo; se não for demonstrável, trocar storage por CAS server-side.
-- **BR-052:** `consumer_run_id` é metadado do vencedor, não componente da chave que permite novo gasto; `operation_key` é estável por HEAD/tipo/tentativa autorizada, inclusive em reentrada, crash e rollover UTC.
-- **BR-053:** reconciler periódico identifica requests perdidas por pending Actions substituído e acorda writer; estado de envio ambíguo é escalado e não repetido. Commits no ledger não podem realimentar wake-up.
+- **BR-052:** `consumer_run_id` é metadado, não nova chave lógica de gasto. O único claim por operation_key admite substituição de executor APENAS pré-financeira comprovada com fencing_epoch incrementado; writer e Budget Broker verificam epoch imediatamente antes de reserva e dispatch, recusando worker stale.
+- **BR-053:** intake trusted grava solicitação em Issue inbox antes de wake-up, com permissões mínimas `issues:write` sem `contents:write` nem secret de IA. Reconciler periódico varre inbox e PRs para reconstruir intents perdidas. Dispatch só com main trusted; ledger não emite wake-ups recursivos.
 - **BR-054:** evidência empírica obrigatória: `RamonRDR/SaaS-CAS-Lab`, run `37873320199`, `docs/RESULTS_2026-10-09.md`. Commits irmãos retornaram 200/422, mas fast-forward stale retornou 200 e regrediu geração 5→2. Essas provas refutam CAS lógico por Git-ref isolado; ainda falta canary de writer global real no SaaS.
+- **BR-055:** toda reentrada roda dispatcher/controle/prompt e script exclusivamente da `main` revisada. `workflow_dispatch` sempre inclui `ref: main` e nunca ref do PR; `repository_dispatch` só aciona o workflow da branch padrão. PR e HEAD são dados a validar, não fonte de permissões.
+- **BR-056:** o intake confiável da `main` possui somente `issues:write` para persistir comentário de inbox e `contents:read`; sua ausência de `contents:write` e `OPENAI_API_KEY` é testada. Reconciler autentica provenance, valida completude da enumeração e reconstrói intenções elegíveis de PR/HEAD caso evento ou persistência tenham falhado; duplicatas não criam operações.
+- **BR-057:** a retomada de `CLAIMED` sem reserva é permitida SOMENTE com prova negativa completa de qualquer reserva/autorização/dispatch/envio, writer global exclusivo, fencing_epoch novo e revogação da execução antiga. Worker stale não pode requisitar budget; dúvida financeira mantém fail-closed sem retry automático.
 
 ## 8. Permissões e multi-tenancy
 
@@ -237,7 +240,7 @@ Controles obrigatórios:
 - conteúdo de PR, comentário, diff e log é dado não confiável;
 - prompts versionados têm precedência sobre instruções encontradas no PR;
 - nenhum código do fork é executado em contexto privilegiado;
-- `pull_request_target`, quando usado para CODEX-01 de fork, fica restrito a workflow da base e é proibido de fazer checkout, importar action/script/configuração do HEAD ou interpolar conteúdo não confiável em shell;
+- `pull_request_target`, inclusive no intake mínimo e CODEX-01 de fork, executa somente workflow/scripts da `main`, nunca checkout/action/config do HEAD do PR; intake com `issues:write` não recebe IA nem `contents:write`, dados do evento e Issue são tratados como não confiáveis;
 - o changeset de fork é obtido por API Git a partir do `merge_base_sha` com `head_sha`, tratado apenas como dado não confiável; `base_tip_sha` é metadado adicional;
 - o reviewer de fork usa integração OpenAI tool-less: nenhum shell, filesystem, tool/function call, subprocesso ou ambiente do runner é exposto ao modelo;
 - o Budget Broker isolado é o único processo que possui `OPENAI_API_KEY`, executa somente código confiável da `main`, sem sudo/elevação e mantém segredo fora de prompt, stdout/stderr e artifacts; jobs de review/remediação enviam somente requisições estruturadas ao broker;
@@ -284,8 +287,8 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-006 | review encontra P0/P1/P2 corrigível em PR same-repo elegível | remediar e gerar novo HEAD automaticamente; em fork aplica-se BR-024 |
 | EDGE-007 | terceiro fracasso da mesma causa | `LOOP_ESCALATION_REQUIRED` |
 | EDGE-008 | API OpenAI indisponível/sem saldo/secret ausente | `BLOCKED_EXTERNAL` |
-| EDGE-009 | push com `GITHUB_TOKEN` não gera novo workflow | Trusted Publisher solicita dispatch explícito ao dispatcher já presente na `main` |
-| EDGE-010 | dispatcher ainda não existe na branch padrão | canary fica bloqueado; concluir bootstrap primeiro |
+| EDGE-009 | push com GITHUB_TOKEN não dispara fluxo | Trusted Publisher executa `repository_dispatch` ou `workflow_dispatch` com ref main explícito, sem scripts da branch PR |
+| EDGE-010 | dispatcher inexistente em main ou `workflow_dispatch` sem ref | bloquear canary e qualquer execução privilegiada antes de bootstrap trusted |
 | EDGE-011 | review pertence a HEAD antigo | ignorar e pedir/reexecutar review |
 | EDGE-012 | output Codex inválido ao schema | fail-closed |
 | EDGE-013 | Codex tenta publicar diretamente | negar; job Codex não possui escrita Git |
@@ -314,7 +317,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-036 | merge-base ausente/ambíguo ou resolução falha | bloquear review; nenhuma evidência clean |
 | EDGE-037 | seis PRs disputam teto global | writer global serializado autoriza apenas reservas até teto, reentradas idempotentes |
 | EDGE-043 | runners fork/same-repo/remediator disputam mesmo `operation_key` | apenas `consumer_run_id` vencedor passa, perdedor sem custo |
-| EDGE-044 | crash após claim e antes do budget | claim imutável, leitura/reconciliação e sem retry pago ambíguo |
+| EDGE-044 | crash após claim antes de budget | readback comprova ausência de reserva/dispatch, writer incrementa fencing_epoch e transfere o mesmo claim; se incerto, bloqueia |
 | EDGE-045 | mesmo pedido financeiro reaparece com novo run ID | retorna mesma reserva por chave estável e não repete dispatch |
 | EDGE-038 | orçamento não configurado, preço desconhecido ou custo máximo ilimitado | bloquear antes da API |
 | EDGE-039 | custo/dispatch ambíguo ou crash após autorização de envio | conservar reserva máxima e bloquear chamada duplicada |
@@ -325,9 +328,14 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 | EDGE-046 | dois workflows mutadores usam grupos concorrentes diferentes | configuração inválida, fail-closed; writer global único entre PRs/workflows |
 | EDGE-047 | Git `force:false` aceita fast-forward com conteúdo baseado em geração antiga | guard semântico rejeita regressão de valor/versão; sem exclusão real, bloquear API |
 | EDGE-048 | update do ledger retorna erro depois de possível persistência | readback por HEAD/identidade, jamais repetir operação sem reconciliar |
-| EDGE-049 | dois eventos criam run IDs diferentes da mesma chamada lógica | mesmo `operation_key`, claim/reserva/dispatch únicos |
-| EDGE-050 | pending Actions substituído por novo wake-up | solicitação permanece durável, reconciler periódico restaura progresso |
+| EDGE-049 | dois run IDs para mesma intent | intake pode registrar duplicata, mas writer usa operation_key único |
+| EDGE-050 | pending Actions coalescido | inbox durável e scanner periódico de PR/HEAD reencontram solicitação |
 | EDGE-051 | crash entre autorização durável de envio e HTTP | estado ambíguo, máximo reservado, nenhum retry pago automático |
+| EDGE-052 | falha de intake antes de wake-up | sem execução paga; scanner periódico rederiva PR/HEAD e persiste intenção antes de novo wake-up |
+| EDGE-053 | duplicação/edição de comentários do inbox | verificar provenance e schema; deduplicar por operation_key; inválidos bloqueiam |
+| EDGE-054 | workflow_dispatch recebe ref omitido ou branch PR | negar, só ref main explícito; repository_dispatch via default branch |
+| EDGE-055 | worker antigo acorda após takeover | fencing_epoch stale barra reserva e dispatch |
+| EDGE-056 | claim parece pré-reserva mas ledger/provenance incerto | sem takeover, manter bloqueio humano |
 
 ## 16. Migration
 
@@ -458,7 +466,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-024:** quotas adicionais de fork por PR/autor são serializadas entre PRs, sem bloquear same-repo/Remediator por ausência de quota de fork.
 - **AC-025:** nenhuma chamada paga ocorre sem solicitação durável, claim universal, reserva financeira válida e autorização de dispatch para o mesmo `operation_key`/HEAD; quota adicional de fork permanece obrigatória.
 - **AC-026:** uma reserva ambígua por crash não é reutilizada para uma segunda chamada automática do mesmo SHA; ela continua contando na quota até expiração ou override humano explícito.
-- **AC-027:** backlog persistido progride sem wake-up humano: reconciler periódico da `main` detecta pedidos não concluídos e reacorda o drainer.
+- **AC-027:** reconciler da main lê inbox e estado canônico PR/HEAD para recuperar intents não persistidas por falha de evento ou ingresso, sem wake-up humano e sem gastos duplicados.
 - **AC-028:** um claim universal por `operation_key` nos três consumidores; quota `RESERVED → CONSUMED` extra só no fork.
 - **AC-029:** CODEX-01 de fork só pode ser considerado válido quando existe prova de completude do payload derivada dos Git Trees/Blobs integrais do base e HEAD exatos.
 - **AC-030:** truncamento, arquivo/objeto ausente, binário não revisável ou payload que não caiba integralmente no envelope configurado bloqueia antes do modelo ou antes da evidência clean e produz `HUMAN_DECISION_REQUIRED`.
@@ -471,13 +479,17 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - **AC-037:** UTC do budget é validado ao reservar e antes da API; claim universal permanece único e não muda com o mês.
 - **AC-038:** teste de rollover entre claim universal, orçamento e dispatch prova autorização financeira do UTC vigente e NENHUM segundo claim após mudança de mês, inclusive relógio incerto/janela insegura.
 - **AC-039:** dois workers do mesmo `operation_key` em fork/same-repo/Remediator disputam claim universal, só winner pode reservar.
-- **AC-040:** idempotência financeira deriva de operação lógica e período, sem novo custo por workflow_run_id; crash claim→budget ou dispatch não gera segundo pagamento.
+- **AC-040:** idempotência financeira por operation_key; crash comprovadamente pré-financeiro pode retomar mesmo claim com fencing_epoch novo, mas ambiguidade após reserva/dispatch não autoriza repetição.
 
 - **AC-041:** writer global efetivo serializa as alterações de claim/quota/budget de TODOS os workflows; teste prova invariantes além de `concurrency` por PR.
 - **AC-042:** teste negativo CAS-Lab (run 37873320199) é regressão obrigatória: atualizar ledger com commit fast-forward stale 5→2 é barrado pelo guard de writer ou backend com CAS server-side; `force:false` isolado não satisfaz gate.
 - **AC-043:** resposta ambígua de escrita exige readback por identidade e geração; falhas antes/depois da autorização de dispatch não repetem gasto.
 - **AC-044:** reentrada, novo consumer e rollover UTC não geram segundo claim/dispatch; somente renovação financeira do mês com evidência de não-envio.
 - **AC-045:** fila de intenções resiste a pending Actions substituído e reconciler periódico progride sem triggers recursivos do ledger.
+- **AC-046:** intake trusted com somente issues:write/contents:read persiste comentário JSON no inbox ANTES do wake-up; falhas, duplicatas, paginação e autor inválido são tratados; scanner de PR/HEAD reconstrói intent perdida.
+- **AC-047:** `workflow_dispatch` sempre tem `ref: main` explícito e `repository_dispatch` só usa dispatcher da branch padrão; PR same-repo que altera workflow não consegue executar código privilegiado não revisado.
+- **AC-048:** após crash comprovadamente pré-reserva, escritor retoma sem novo claim lógico incrementando fencing_epoch; worker antigo não reserva nem despacha; HEAD original preservado.
+- **AC-049:** reserva, dispatch ou envio potencialmente iniciado/ambíguo bloqueia takeover e mantém teto comprometido até conciliação ou decisão humana.
 
 ## 20. Evidências de validação esperadas
 
@@ -502,7 +514,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - conta/projeto OpenAI API com billing habilitado;
 - Codex Action/CLI/SDK suportado para CI;
 - ADR-0010 vigente;
-- ADR-0013 rev.1 permanece `Accepted` até aceite da ADR-0014 rev.2, ADR-0012 rev.7 `Superseded`. SDD v1.3 e ADR-0014 rev.2 exigem revisão e decisão humana. O CAS-Lab é evidência delimitada, não executor de produção.
+- ADR-0013 rev.1 permanece `Accepted` até aceite da ADR-0014 rev.3; ADR-0012 rev.7 `Superseded`. SDD v1.4 e ADR-0014 rev.3 aguardam parecer e decisão humana. CAS-Lab não prova executor pago.
 
 ## 22. Riscos conhecidos
 
@@ -536,7 +548,7 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 ## 24. ADRs necessários ou relacionados
 
 - **ADR necessário:** Sim
-- **Referências:** ADR-0010, ADR-0012 rev.7 (histórica, `Superseded`), ADR-0013 rev.1 (`Accepted`, vigente), ADR-0014 rev.2 (`Proposed`, writer global e claim universal)
+- **Referências:** ADR-0010, ADR-0012 rev.7 (`Superseded`), ADR-0013 rev.1 (`Accepted` vigente), ADR-0014 rev.3 (`Proposed`: ingresso durável, main-only dispatch, fencing)
 - **Motivo:** mover o runtime para GitHub Actions + Codex, introduzir API paga e definir fronteiras de privilégio é decisão transversal e durável.
 
 ## 25. Histórico de revisão
@@ -555,25 +567,26 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 | 1.0 | 2026-10-08 | Product & SDD | corrige diff para merge-base/head e exige orçamento global independente, atômico e bloqueante antes de toda chamada paga |
 | 1.1 | 2026-10-08 | Product & SDD | revalida mês UTC no claim e no dispatch; restaura ADR-0012 imutável e propõe ADR-0013 como sucessora; aprovada pelo humano no PR #2 |
 | 1.2 | 2026-10-08 | Product & SDD | P2: claim quota antes do budget; referências ADR-0012/0013 alinhadas |
-| 1.3 | 2026-10-09 | Product & SDD | P1/P2: claim universal, UTC imutável, writer global; regressão CAS-Lab 5→2; requer revisão e novo gate humano |
+| 1.3 | 2026-10-09 | Product & SDD | claim universal, UTC imutável, writer global, prova CAS-Lab |
+| 1.4 | 2026-10-09 | Product & SDD | ingress mínimo, ref main obrigatória e takeover pré-financeiro fenced após Codex a052482 |
 
 ## 26. Aprovação
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Pendente de revisão técnica de v1.3
-- **Versão revisada:** Não aplicável à v1.3 até novo parecer
+- **Parecer de `review-sdd`:** Pendente para v1.4 e Codex final
+- **Versão revisada:** Não aplicável antes de review de v1.4
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-09
 - **Evidência anterior:** SDD v1.1 aprovada, Codex no HEAD `a58a1f7` identificou P1 same-repo e P2 UTC; CAS-Lab demonstrou o limite de `force:false` no run #37873320199.
-- **Pendências bloqueantes:** review cruzado de v1.3/ADR-0014 rev.2 e aprovação humana pendentes; garantias operacionais do writer são testes/canaries da implementação.
+- **Pendências bloqueantes:** revisar prova de persistência pré-wake-up, dispatch main-only e fencing pré-financeiro; gates técnicos e humanos pendentes.
 - **Pendências não bloqueantes:** implementação, configuração de orçamento/preços e canary E2E antes de uso pago.
 
 ### Gate humano
 
 - **Aprovada:** Não para a versão atual
-- **Versão aprovada:** Não aplicável à v1.3
+- **Versão aprovada:** Não aplicável à v1.4
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Pendente para v1.3
-- **Registro da aprovação atual:** Pendente. Aprovação da SDD v1.1 no comentário #6070726649 não aprova v1.3.
-- **Aprovação histórica preservada:** SDD v0.8/ADR-0012 rev.7 (#6043168597) e SDD v1.1/ADR-0013 rev.1 (#6070726649); não aprovam SDD v1.3/ADR-0014 rev.2.
+- **Data:** Pendente para v1.4
+- **Registro da aprovação atual:** Pendente. Aprovação humana da SDD v1.1 no comentário #6070726649 não aprova v1.4.
+- **Aprovação histórica preservada:** SDD v0.8/ADR-0012 rev.7 (#6043168597) e SDD v1.1/ADR-0013 rev.1 (#6070726649) não aprovam SDD v1.4/ADR-0014 rev.3.
