@@ -1,17 +1,17 @@
-# ADR-0014 - Claim exclusivo antes de reserva monetária idempotente
+# ADR-0014 - Claim universal e Single-Writer Global para inferência paga
 
 ## Metadados
 
 - **ID:** ADR-0014
-- **Título:** Claim exclusivo antes de reserva monetária idempotente
+- **Título:** Claim universal e Single-Writer Global para inferência paga
 - **Status:** Proposed
-- **Revisão decisória:** 1
+- **Revisão decisória:** 2
 - **Data de criação:** 2026-10-08
-- **Última atualização:** 2026-10-08
+- **Última atualização:** 2026-10-09
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v1.2
+- **SDDs relacionadas:** SDD-0001 v1.3
 - **ADRs relacionados:** ADR-0013 rev.1 (`Accepted`, vigente); ADR-0012 rev.7 (`Superseded`); ADR-0010
 - **PR / issue relacionada:** PR #2 / Issue #1
 
@@ -19,134 +19,151 @@ Nenhum agente de IA pode marcar esta ADR `Accepted`. A ADR-0013 permanece vigent
 
 ## 1. Contexto
 
-O CODEX-01 do HEAD `81255f16b3719fe56227f1827acbf37194906810` identificou P2 na sequência de canary da ADR-0013 rev.1: `budget CAS global → quota/claim exclusivo → API`. Dois consumers do mesmo request poderiam ocupar duas reservas monetárias antes da escolha do vencedor. Como a ADR-0013 já foi aceita, uma alteração material nessa ordem exige sucessora, não reescrita do histórico.
+O CODEX-01 do HEAD `a58a1f7` identificou P1: CODEX-01 same-repo e Remediator não possuem claim para acessar Budget Broker; e P2: rollover UTC tenta novo claim apesar de `CONSUMED` ser imutável. A versão anterior da ADR tratava claim de quota específico de fork e pressupunha `CAS` de ledger financeiro via Git ref.
+
+A evidência real em `RamonRDR/SaaS-CAS-Lab`, [run #37873320199](https://github.com/RamonRDR/SaaS-CAS-Lab/actions/runs/37873320199), [relatório](https://github.com/RamonRDR/SaaS-CAS-Lab/blob/main/docs/RESULTS_2026-10-09.md), mostrou: dois runners independentes com commits irmãos obtiveram HTTP 200/422 (um vencedor) para claim e orçamento; um writer serializado reconciliou 4/4 reservas, 2 negadas; **contraexemplo:** Git aceitou HTTP 200 para commit fast-forward baseado em estado lógico antigo, regredindo geração do ledger 5→2, com `force:false`. Depois o teste restaurou o estado e apagou a ref efêmera. Logo `PATCH /git/refs force:false` NÃO implementa CAS transacional de dados.
+
+A ADR-0013 rev.1 permanece `Accepted` e suas seções decisórias são imutáveis. Esta ADR-0014 rev.2 é proposta sucessora, ainda dependente de parecer e aceite humano.
 
 ## 2. Drivers da decisão
 
-- Exclusividade de chamadas pagas e de reservas monetárias.
-- Limite mensal global efetivamente bloqueante.
-- Continuidade idempotente sob concorrência, crash e retries.
-- Separação de privilégios e preservação do histórico de decisões.
-- Segurança de repositório público e rastreabilidade por HEAD.
+- Todos os consumidores de IA paga precisam de claim exclusivo e orçamento sem exceções same-repo.
+- Um único ledger mensal global deve impedir dupla reserva e gasto acima do teto sob concorrência entre PRs/workflows.
+- Crash, reentrada, falha de transporte e rollover UTC não podem converter incerteza em nova chamada paga.
+- Repositório público: zero segredo em fork/reviewer/Remediator/Trusted Publisher; broker isolado trusted da `main`.
+- Governança, provenance, human gates e anti-loop prevalecem; arquitetura ≠ prova de runtime operacional.
 
 ## 3. Restrições
 
-- O Quota Broker e Budget Broker são base-trusted, sem execução de código de fork.
-- Apenas Budget Broker detém `OPENAI_API_KEY`.
-- Nenhuma chamada é liberada sem budget CAS e período UTC válido.
-- Não existe transação atômica distribuída pressuposta entre dois ledgers separados; falha entre etapas é tratada conservadoramente.
-- Regras `fail-closed`, anti-loop, gate humano de merge e PHASE-0-G permanecem vigentes.
+- Sem mudança de domínio do SaaS, Flutter, banco de produto ou PHASE-0-G.
+- Não confiar em `concurrency` por PR, 1 pending workflow, Git ref fast-forward ou comentários como storage transacional.
+- Não pressupor duas refs Git atômicas entre quota/claim/budget; o escritor global é o ÚNICO decisor de mutações financeiras e claims.
+- O `GITHUB_TOKEN` com `contents:write` vale para o repositório, não um prefixo de branch. Escritor somente da `main` confiável, sem executar PR/fork e com isolamento de credenciais.
+- Sem prova de exclusão durável, ledger íntegro, preço, orçamento humano e despacho autorizado, NENHUMA API paga está habilitada.
 
 ## 4. Opções consideradas
 
-### Opção A - Reservar budget antes de escolher o consumidor vencedor
+### A - Budget antes do claim
 
-Rejeitada. Pode haver duas reservas financeiras para apenas uma chamada. Sem deduplicação e devolução comprovada, consumidores derrotados bloqueiam legitimamente o orçamento.
+Rejeitada: consumidores perdedores comprometem orçamento e podem consumir o teto sem chamada.
 
-### Opção B - Primeiro claim exclusivo de quota, depois reserva financeira idempotente (escolhida)
+### B - Quota claim de fork e Git ref `force:false` como CAS financeiro
 
-Somente quem vence CAS `RESERVED → CONSUMED` com `consumer_run_id` persistido acessa o Budget Broker. O broker reserva custo máximo via CAS financeiro com chave canônica da solicitação. Repetições retornam o mesmo registro sem incremento nem autorização para nova chamada. Perdedores não possuem reserva monetária.
+Rejeitada como solução global: deixa same-repo sem claim e a prova negativa do CAS-Lab demonstrou sobrescrita fast-forward de snapshot stale (geração 5→2).
 
-### Opção C - Transação única envolvendo quota e budget
+### C - Dois ledgers independentes com suposta transação atômica
 
-Possível evolução se houver armazenamento transacional comum com garantias reais. Não pressupor atomicidade distribuída em múltiplas Git refs. Até haver evidência técnica dessa implementação, usa-se a opção B.
+Rejeitada sem transação distribuída comprovada; crash entre refs cria ambiguidade e risco de inconsistência.
 
-## 5. Opção recomendada
+### D - Writer Global Único + claim universal + ledger canônico (escolhida)
 
-- **Opção:** B, claim exclusivo antes de budget com idempotência financeira por identidade.
-- **Justificativa:** elimina ocupação dupla por consumidores perdedores e mantém fail-closed entre operações Git distintas, sem atribuir garantias transacionais não demonstradas.
+Todos os consumidores publicam intents duráveis; um escritor global trusted, serializado efetivamente para todo repositório, aplica elegibilidade, quota adicional de fork, claim lógico e orçamento idempotente. Dentro da exclusão, verifica estado lógico imediatamente antes de gravar e relê após erro ambíguo. Sem garantia real de exclusão ou recuperação, bloqueia gasto ou muda para storage de CAS server-side verificável.
 
-Esta seção propõe uma decisão; não constitui aceite.
+## 5. Decisão proposta
+
+- **Opção:** D. Claim universal anterior ao orçamento, Single-Writer Global para claim/quota/finanças e Budget Broker exclusivo.
+- **Motivo:** corrige P1/P2, evita duas reservas antes de escolher vencedor, e não inventa transação Git que não existe.
+- **Limite importante:** `concurrency.group` global, com `cancel-in-progress:false`, é controle operacional auxiliar de exclusão, mas **não é fila durável nem transação**. Ao habilitar execução paga, testar que TODO workflow mutador compartilha exclusivamente a mesma região crítica e que nenhuma execução paralela ou bypass existe. Se GitHub não comprovar, trocar backend antes de cobrar.
+
+Esta seção é PROPOSTA, não aceite humano.
 
 ## 6. Consequências
 
 ### Positivas
 
-- Um único vencedor por reserva de quota.
-- Nenhum orçamento consumido por perdedor de claim.
-- Idempotência da reserva financeira mesmo sob retransmissão.
-- Rastro auditável da ordem `quota claim → budget reserve → dispatch`.
+- Quota de autor/PR é guarda ADICIONAL só para fork. CODEX-01 same-repo e Remediator recebem claim universal sem depender da quota de fork.
+- Chave lógica estável impede múltiplos compromissos após troca do workflow_run_id.
+- Writer único reduz superfícies concorrentes e permite orçamento global em um único limite conservador.
+- Incerteza vira bloqueio auditável e não repetição automática de pagamento.
 
-### Trade-offs e obrigações
+### Trade-offs
 
-- Crash após quota claim e antes do budget pode manter uma solicitação sem chamada: bloquear retry pago do mesmo HEAD até decisão humana.
-- Duas Git refs não são tratadas como transação atômica distribuída.
-- Reconciler precisa distinguir `quota claimed / no financial reservation` de `paid call ambiguous`.
-- O controle financeiro deve permanecer global e conservador sob concorrência entre solicitações diferentes.
+- Writer único limita throughput e exige drainer/reconciler e backpressure.
+- Job pending do Actions pode ser substituído; toda solicitação deve persistir antes do wake-up.
+- Crash entre claim e gasto pode deixar operação bloqueada sem chamada; isso é intencional fail-closed.
+- Storage Git é permitido SOMENTE se o canary demonstrar exclusão efetiva, monotonicidade lógica, recuperação e ausência de concorrente alternativo; caso contrário requer backend transacional.
 
-## 7. Segurança e isolamento
+## 7. Segurança e protocolo de execução
 
-1. Trust gate e quota `RESERVED` precedem claim.
-2. Apenas CAS `RESERVED → CONSUMED` vencedor registra `consumer_run_id`, `request_id`, `reservation_id`, PR e HEAD.
-3. Somente o vencedor pede reserva ao Budget Broker. Identidade financeira canônica: `(request_id, reservation_id, consumer_run_id, budget_period_utc, model, operation)`.
-4. O Budget Broker confirma autorização de claim e executa CAS `check + reserve` global considerando `committed + outstanding_max + new_max <= budget_limit`; repetição da chave retorna o mesmo registro sem nova contabilização.
-5. Chave divergente, estado ambíguo ou tentativa de reutilização da autorização para outra chamada bloqueia antes da API.
-6. Período UTC é revalidado no claim financeiro e antes do dispatch. Nova reserva mensal exige comprovação de não-envio da chamada anterior e novo CAS, sempre para o mesmo consumidor exclusivo; gastos ambíguos não são liberados automaticamente.
-7. Falhas ou crash antes de reserva financeira não autorizam retry pago para o mesmo HEAD; nunca se promete progresso sem evidência de estado seguro.
+1. Persistir `operation_key = repository/pr/head_sha/operation_kind/authorized_attempt` e `request_id` derivado antes de qualquer wake-up. Para fork CODEX-01, uma tentativa por HEAD; Remediator usa número de tentativa autorizada e anti-loop.
+2. Reconciler trusted da `main` valida origem/HEAD, job/PR, risco, trust gate para autor externo e quotas de fork. Quem chega à inferência paga é fork CODEX-01, same-repo CODEX-01 ou Codex Remediator; ninguém chama provedor diretamente.
+3. Writer global único verifica `PENDING → ELIGIBLE → CLAIMED` para qualquer tipo e grava vencedor `consumer_run_id`. `workflow_run_id` não entra na chave idempotente de operação. Para fork, quota `RESERVED → CONSUMED` é parte da mesma decisão serializada, não outro claim independente.
+4. Somente vencedor pode pedir reserva financeira. Ledger canônico inclui `operation_key`, `financial_reservation_id`, `budget_period_utc`, `model`, `operation`, `max_cost_minor`, comprometido, outstanding, geração, provenance e estado de envio. Sob writer global, revalidar estado imediatamente antes da mutação e permitir apenas `committed + outstanding_max + new_max <= budget_limit`. Duplicate retorna reserva existente sem aumentar teto nem habilitar novo dispatch.
+5. Antes da API, Budget Broker com única credencial e código trusted grava autorização de dispatch durável e verifica relógio UTC confiável, mês vigente, janela segura e ausência de envio anterior. Estado `SENT`/`AMBIGUOUS` bloqueia retry automático da mesma operação.
+6. Rollover UTC **não refaz claim lógico** nem quota `CONSUMED`. Se nenhuma chamada foi enviada comprovadamente, o mesmo vencedor pode solicitar reserva FINANCEIRA no novo mês, sob writer global e idempotência da operação; reserva antiga fica conservadoramente comprometida até conciliação terminal. Se não há prova de não-envio, fail-closed.
+7. Erro, timeout ou resposta desconhecida da GitHub API exige readback remoto por identidade/geração e estado de envio antes de decidir nova transição. Mesmo HTTP 200 não prova que os dados eram logicamente atuais: validar geração e invariantes sob exclusão.
+8. Reconciler periódico lê journal canônico, não payload de evento; lida com pending Actions coalescido e nunca faz envio pago automático sob estado ambíguo. Commits do ledger não devem reativar o dispatcher por `push` recursivo.
+9. Sem comprovação da exclusão global do writer, branch/trust safety, preço e limite aprovado, bloquear chamadas (`BLOCKED_EXTERNAL`/`HUMAN_DECISION_REQUIRED`). Merge do produto continua gate humano.
 
-## 8. Dados e contratos da API
+## 8. Modelo de dados e contrato
 
-Nenhuma mudança em dados ou API do produto. O ledger persistente inclui `request_id`, `reservation_id`, `consumer_run_id`, `budget_period_utc`, `model`, `operation`, `max_cost_minor`, versão CAS, estado e provenance. O broker rejeita identidades inconsistentes.
+Não afeta schema de domínio do SaaS. O journal de execução persiste identidade da operação, request, consumer, PR/HEAD, kind, tentativa autorizada, quota fork (quando aplicável), reserva de custo, mês UTC, custo máximo e conciliado, geração monotônica, controle de envio e provenance. Separar `quota_reservation_id` de `financial_reservation_id`. O escritor deve tratar as transições como *uma decisão global serializada*, sem atribuir ACID a refs Git separadas.
 
-## 9. Operação e observabilidade
+## 9. Operação, custos e observabilidade
 
-Registrar tentativa de claim, CAS vencedor/perdedor, solicitação financeira, resultado de deduplicação, mês UTC, autorização de dispatch, sucesso/falha e custo conciliado. Nunca registrar secrets ou dados sensíveis do fork em logs operacionais.
+- Fonte de verdade: ledger confiável, não comentários, logs, nem payload de wake-up.
+- Registrar vencedores e perdedores, geração antiga/nova, operação, budget, UTC, readback de retorno ambíguo, event sourcing e recusas.
+- Guardar segredos exclusivamente em Budget Broker, nunca nos artefatos/modelo do fork.
+- Limitar custo por input/output tokens, preço versionado, modelo, tamanho, retries e custos adicionais com teto mensal humano positivo.
+- Falta de writer único comprovado, armazenamento transacional alternativo ou secret isolado bloqueia implantação paga.
 
-## 10. Migração e rollout
+## 10. Migração, rollout e canary
 
-1. Obter review técnico favorável e aprovação humana de SDD-0001 v1.2.
-2. Obter review técnico favorável e aceite humano de ADR-0014 rev.1.
-3. Implementar a sequência **`quota RESERVED → quota claim CAS exclusivo → budget CAS idempotente → revalidar mês UTC → dispatch API`** no bootstrap em PR próprio.
-4. Canary negativo: dois consumidores do mesmo `request_id` iniciam simultaneamente; exatamente um faz reserva financeira; perdedor não incrementa `outstanding_max_minor`.
-5. Canary de retry da reserva pelo mesmo vencedor: idempotência por chave, sem segunda reserva nem segunda chamada.
-6. Canary de crash após claim e antes de budget: sem chamada e sem cobrança, escalando recuperação; crash depois de dispatch ambíguo mantém custo máximo comprometido.
-7. Canary UTC: rollover entre quota claim, budget e dispatch exige CAS no bucket atual; não executar chamada com autorização de mês anterior.
-8. Manter ADR-0013 como `Accepted` até que a ADR-0014 seja aceita; só então marcar a anterior `Superseded`, sem alterar seu conteúdo decisório.
+1. Obter `review-sdd` e aprovação humana da SDD-0001 v1.3, `review-adr` e aceite humano desta ADR-0014 rev.2. Somente então a ADR-0013 rev.1 poderá mudar para `Superseded`, sem reescrever decisões originais.
+2. Bootstrap em PR separado do dispatcher confiável, fila durável, writer global, Budget Broker, quota extra de fork, Trusted Publisher e reconciler; incluir `concurrency` global e auditoria de todos os mutadores.
+3. Canary SEM API paga: testar fork, same-repo e Remediator, dois workers por `operation_key`, seis PRs competindo por teto, duplicatas, reruns, crashes, perda de pending job, readback de erro de API, rollover UTC e proposta stale descendente.
+4. Critério crítico: tentativa de fast-forward com dados obsoletos (regressão 5→2) deve falhar no guard do writer ou motivar adoção de storage CAS server-side. É insuficiente que commits irmãos resultem 200/422.
+5. Verificar que escritor privilegiado da `main` não executa código de fork nem expõe secrets; `OPENAI_API_KEY` somente no Budget Broker. Sem guardas completos, canary pago não inicia.
+6. Apenas depois de todos os gates, modelo/preços/tetos humanos e CODEX-01 final, permitir canary pago controlado em escopo restrito. `DONE_ALLOWED`/PHASE-0-G continuam bloqueados até validação real pós-merge.
 
-## 11. Rollback e reversibilidade
+## 11. Rollback
 
-- **Reversível:** Sim, durante rollout do runtime.
-- **Estratégia:** desabilitar chamadas pagas e voltar a Mode A interativo se os testes falharem.
-- **Custo:** backlog poderá exigir intervenção humana, sem comprometer credenciais ou criar reservas duplicadas.
+- Desabilitar chamadas pagas e retornar Mode A interativo se a exclusão de writer/ledger/segredo não puder ser demonstrada.
+- Nunca liberar automaticamente reservas ambíguas nem sobrescrever ledger a partir de snapshot obsoleto.
+- Preservar journal e auditoria para reconciliação humana; rollback de código não implica desfazer gasto.
 
 ## 12. Relação com decisões existentes
 
-- **ADR-0013 rev.1:** vigente e `Accepted`; esta ADR propõe suceder especificamente a ordem de claim/reserva de budget. Somente após aceite humano a ADR-0013 poderá ser marcada `Superseded`.
-- **ADR-0012 rev.7:** decisão histórica `Superseded` pela ADR-0013. Não reescrever.
-- **ADR-0010:** regras de CI e merge humano permanecem.
+- ADR-0013 rev.1: `Accepted`, vigente enquanto esta ADR estiver `Proposed`. O conteúdo decisório aceito não foi editado; transição a `Superseded` só depois do aceite desta sucessora.
+- ADR-0012 rev.7: `Superseded`, decisão histórica preservada.
+- ADR-0010: mantém merge humano obrigatório, CI e gates.
+- SDD-0001 v1.3: mesma versão/contrato proposta para aprovação humana independente.
 
 ## 13. Pareceres dos especialistas impactados
 
-| Especialista | Parecer preliminar | Pendências |
+| Especialista | Avaliação documental | Evidência faltante antes do canary pago |
 | --- | --- | --- |
-| Security | Requer validação | Isolamento, chaves e idempotência |
-| Platform & Observability | Requer validação | CAS concorrente e rastreabilidade |
-| QA & Quality | Requer validação | Interleavings e testes negativos |
+| Security | Escopo arquitetural revisável | Isolamento de token, writer trusted e branch provenance reais |
+| Platform & Observability | Requisitos especificados | Garantia de serialização global, crash recovery, backlog/durable ledger |
+| QA & Quality | Cenários adversariais definidos | E2E contra regressão stale 5→2, 3 consumidores, UTC e idempotência |
 | Backend / Frontend | Não aplicável | Sem feature de produto |
 
-## 14. Riscos não resolvidos
+## 14. Riscos residuais e evidência externa
 
-Sem teste real de CAS e budget broker implementado, as garantias permanecem **requisitos arquiteturais**, não funcionalidades comprovadas. A ambiguidade de chamada paga mantém custo reservado e exige gate humano quando não é recuperável com evidência segura.
+- Evidência real do CAS-Lab: [relatório](https://github.com/RamonRDR/SaaS-CAS-Lab/blob/main/docs/RESULTS_2026-10-09.md), [run com 15 jobs aprovados](https://github.com/RamonRDR/SaaS-CAS-Lab/actions/runs/37873320199); ambos com cleanup de refs. Os testes provaram concorrência de commits irmãos e refutaram CAS semântico de `force:false`.
+- **Não comprovado:** exclusão global de writer de produção em todos os workflows/PRs do SaaS, durabilidade end-to-end da fila, recuperação real de falha de transporte, autorização sem duplicação e custo real da API. Esses são gates obrigatórios de bootstrap/canary, NÃO riscos implicitamente aceitos.
+- Nenhuma mudança nesta ADR autoriza chamada paga ou merge sem decisão humana.
 
 ## 15. Histórico de revisão
 
 | Data | Responsável | Alteração | Estado |
 | --- | --- | --- | --- |
 | 2026-10-08 | Product & SDD | Proposta sucessora à ADR-0013 para corrigir reserva monetária antes de quota claim | rev.1 `Proposed` |
+| 2026-10-09 | Product & SDD | Revisão material: claim universal, writer global e contraexemplo real CAS-Lab 5→2 | rev.2 `Proposed` |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Pendente
-- **Revisão revisada:** Ainda não revisada, rev.1 proposta
+- **Parecer de `review-adr`:** Pendente para rev.2
+- **Revisão revisada:** Não aplicável até parecer técnico sobre rev.2
 - **Revisor:** Orchestrator / Tech Lead
-- **Data:** Não aplicável até conclusão
-- **Pendências bloqueantes:** verificar claim-first e CAS financeiro idempotente, inclusive rollover UTC.
-- **Pendências não bloqueantes:** implementar e provar canaries antes da integração paga.
+- **Data:** Pendente
+- **Pendências bloqueantes:** revisar consistência de claim universal, Single-Writer Global, idempotência, UTC e evidência CAS-Lab; aceite humano posterior ainda pendente.
+- **Pendências não bloqueantes:** implementação, canaries de writer global e orçamento/secret antes de API paga.
 
 ## 17. Aceite humano
 
 - **Aceito:** Não
 - **Responsável humano:** Ramon Rodriguez
-- **Revisão aceita:** Não aplicável
+- **Revisão aceita:** Não aplicável à rev.2 ainda proposta
 - **Data:** Pendente
-- **Registro:** Pendente. Aceite de ADR-0013 rev.1 (#6070726649) não equivale ao aceite desta ADR-0014.
+- **Registro:** Pendente. Aceite humano anterior da ADR-0013 rev.1 (#6070726649) não se estende à ADR-0014 rev.2.
