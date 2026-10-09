@@ -41,5 +41,5 @@ jobs:
             echo "- Simulated provider only, no OpenAI calls."
             echo "- Python in-memory CAS is **not** proof of GitHub atomicity."
             echo "- No merge, no edits to PR #2."
-            echo "- Branch: `experiment/claim-budget-lab`"
+            echo '- Branch: experiment/claim-budget-lab'
           } >> "$GITHUB_STEP_SUMMARY"
