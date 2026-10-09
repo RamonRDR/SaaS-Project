@@ -44,7 +44,7 @@ def proposal(worker: str, source_head: str, run_id: str) -> dict[str, Any]:
         "run_id": run_id,
         "snapshot_revision": 0,
         "claim_request_id": "claim-shared",
-        "requests": EXPECTED_REQUESTS[worker],
+        "requests": list(EXPECTED_REQUESTS[worker]),
         "budget_cost_minor": 1,
         "fault_injection": {
             "alpha": {"write_ack": "UNKNOWN_AFTER_PERSIST"},
