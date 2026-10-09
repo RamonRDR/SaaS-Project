@@ -98,6 +98,10 @@ Validamos dois jobs GitHub Actions independentes, cada um publicando seu própri
 
 Esse teste **não** executou duas escritas paralelas no mesmo ledger Git remoto. Falta validar CAS distribuído em condições reais antes da implementação de pagamento automatizado.
 
+## Gate para escritor CAS privilegiado
+
+A auditoria de permissões encontrou a `main` pública sem proteção. **Não ativar `contents: write` nesta branch**. Testes de autorização fail-closed estão em [test_privilege_gate.py](./test_privilege_gate.py) e o desenho para um repositório descartável separado está em [PRIVILEGED_CAS_GATE.md](./PRIVILEGED_CAS_GATE.md). Ainda não existe prova de dois escritores remotos independentes no mesmo ledger.
+
 ## Limitações e próximos gates
 
 **Importante:** o `SimulatedCASLedger` modela o comportamento esperado com
