@@ -1,12 +1,16 @@
 {
   "experiment": "git-ref-cas",
-  "revision": 2,
+  "revision": 3,
   "request_id": "claim-probe-001",
   "claim_owner": "worker-A",
   "monthly_budget_limit": 4,
   "reservations": [
     {
       "id": "op-01",
+      "max_cost_minor": 1
+    },
+    {
+      "id": "op-02",
       "max_cost_minor": 1
     }
   ]
