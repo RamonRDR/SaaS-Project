@@ -1,6 +1,6 @@
 {
   "experiment": "git-ref-cas",
-  "revision": 4,
+  "revision": 5,
   "request_id": "claim-probe-001",
   "claim_owner": "worker-A",
   "monthly_budget_limit": 4,
@@ -15,6 +15,10 @@
     },
     {
       "id": "op-03",
+      "max_cost_minor": 1
+    },
+    {
+      "id": "op-04",
       "max_cost_minor": 1
     }
   ]
