@@ -84,6 +84,6 @@ Conteúdo em português do Brasil. Identificadores técnicos e exemplos de códi
 
 | SDD | Entrega | Versão | Status |
 | --- | --- | ---: | --- |
-| [SDD-0001](./SDD-0001-runtime-unattended-mode-a.md) | Runtime unattended cloud-native do Mode A | 1.1 | `Approved` |
+| [SDD-0001](./SDD-0001-runtime-unattended-mode-a.md) | Runtime unattended cloud-native do Mode A | 1.2 | `In Review` |
 
 A versão experimental 0.1 da SDD-0001 pertence ao histórico privado anterior e não foi importada para o snapshot público. O ID foi preservado para manter continuidade documental.
