@@ -5,13 +5,13 @@
 - **ID:** ADR-0014
 - **Título:** Claim universal, ingresso durável e Single-Writer Global
 - **Status:** Proposed
-- **Revisão decisória:** 4
+- **Revisão decisória:** 5
 - **Data de criação:** 2026-10-08
 - **Última atualização:** 2026-10-09
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
-- **SDDs relacionadas:** SDD-0001 v1.5
+- **SDDs relacionadas:** SDD-0001 v1.6
 - **ADRs relacionados:** ADR-0013 rev.1 (`Accepted`, vigente); ADR-0012 rev.7 (`Superseded`); ADR-0010
 - **PR / issue relacionada:** PR #2 / Issue #1
 
@@ -23,7 +23,7 @@ O CODEX-01 do HEAD `a58a1f7` identificou P1: CODEX-01 same-repo e Remediator nã
 
 A evidência real em `RamonRDR/SaaS-CAS-Lab`, [run #37873320199](https://github.com/RamonRDR/SaaS-CAS-Lab/actions/runs/37873320199), [relatório](https://github.com/RamonRDR/SaaS-CAS-Lab/blob/main/docs/RESULTS_2026-10-09.md), mostrou: dois runners independentes com commits irmãos obtiveram HTTP 200/422 (um vencedor) para claim e orçamento; um writer serializado reconciliou 4/4 reservas, 2 negadas; **contraexemplo:** Git aceitou HTTP 200 para commit fast-forward baseado em estado lógico antigo, regredindo geração do ledger 5→2, com `force:false`. Depois o teste restaurou o estado e apagou a ref efêmera. Logo `PATCH /git/refs force:false` NÃO implementa CAS transacional de dados.
 
-A ADR-0013 rev.1 permanece `Accepted` e suas seções decisórias são imutáveis. Esta ADR-0014 rev.4 é proposta sucessora, ainda dependente de parecer e aceite humano.
+A ADR-0013 rev.1 permanece `Accepted` e suas seções decisórias são imutáveis. Esta ADR-0014 rev.5 é proposta sucessora, ainda dependente de parecer e aceite humano.
 
 
 O CODEX-01 do HEAD `a052482` identificou duas falhas P1 (writer financeiro não pode ser o único escritor de intents que precisam existir antes de acordá-lo; `workflow_dispatch` sem `ref: main` pode executar workflow da branch PR) e um P2 (claim imutável fica preso após crash estritamente pré-financeiro). Esta rev.3 especifica ingresso independente de orçamento, reentrada main-only e retomada fenced com prova negativa de efeitos. Sem alterar as decisões aceitas ADR-0012/0013.
@@ -34,6 +34,13 @@ O CODEX-01 do HEAD `a052482` identificou duas falhas P1 (writer financeiro não 
 3. **Uma tentativa de CODEX-01 por HEAD:** `authorized_attempt=0` para ambos fork e same-repo. Tentativa diferente é rejeitada antes de quota/claim/budget. Apenas Remediator pode usar tentativa autorizada distinta sob anti-loop.
 
 Esses refinamentos fazem parte desta ADR ainda `Proposed`, não mudam a vigência histórica da ADR-0013 rev.1 e não autorizam código/IA paga antes de aceite humano e canary.
+
+### Dois invariantes adicionais identificados no CODEX-01 do HEAD `9ca3248`
+
+- **Contrato confiável de review:** o mesmo changeset pode produzir decisão distinta quando workflow, prompt, schema, parser, policy, modelo ou dependências executáveis do CODEX-01 forem alterados na `main`. Calcular `trusted_review_contract_digest` de manifest canônico e **completo de dependências transitivas efetivamente carregadas**, incluindo conteúdo/versões, e incorporá-lo ao `review_context_fingerprint`. A decisão READY revalida a revisão confiável atual; evidence clean de contrato antigo é inválida. Se CODEX-01 já foi pago para aquele HEAD, requer novo HEAD antes de outra inferência, preservando uma chamada por SHA. Mudança de `main_source_commit_sha` sem alteração do digest da closure não força nova inferência.
+- **Identidade específica de causa do Remediator:** `operation_key` do Remediator inclui `root_cause_family_id` normalizado pelo trusted reducer, além de HEAD e `authorized_attempt`. Duas causas independentes podem ambas estar em attempt=0 no mesmo HEAD sem colisão. O contador anti-loop é conservado por causa/repo/PR **entre HEADs** e escala após três correções repetidas sem progresso; mensagens reformatadas ou novos commits não zeram tentativas. Classificação ambígua falha fechada e exige revisão/decisão humana.
+
+Ambos fazem parte da rev.5 PROPOSTA. Não substituem a ADR-0013 Accepted nem habilitam execução paga antes de parecer, aceite humano e canaries.
 
 ## 2. Drivers da decisão
 
@@ -71,8 +78,8 @@ Todos os consumidores fazem ingresso via workflow trusted da `main`, com permiss
 
 ## 5. Decisão proposta
 
-- **Opção:** D. Intake mínimo com inbox persistido antes do wake-up; claim universal e escritor financeiro global único; dispatch main-only; takeover pré-financeiro com fencing e Budget Broker exclusivo.
-- **Motivo:** corrige P1/P1/P2 da última revisão sem relaxar o controle de custo nem confiar em atomicidade Git não demonstrada; separa persistência da solicitação, exclusividade financeira e execução do consumidor.
+- **Opção:** D. Trusted intake com inbox durável; claim universal e writer financeiro global; review fingerprint de changeset + contrato trusted; Remediator por root_cause_family_id, dispatch main-only e fencing; orçamento de preço/caps imutáveis.
+- **Motivo:** mantém exclusividade financeira/segurança e resolve os achados P1/P2 adicionais sem abrir nova arquitetura: evidência de review sempre ligada ao contrato trusted vigente e tentativas do Remediator isoladas por causa raiz estável.
 - **Limite importante:** `concurrency.group` global, com `cancel-in-progress:false`, é controle operacional auxiliar de exclusão, mas **não é fila durável nem transação**. Ao habilitar execução paga, testar que TODO workflow mutador compartilha exclusivamente a mesma região crítica e que nenhuma execução paralela ou bypass existe. Se GitHub não comprovar, trocar backend antes de cobrar.
 
 Esta seção é PROPOSTA, não aceite humano.
@@ -82,7 +89,7 @@ Esta seção é PROPOSTA, não aceite humano.
 ### Positivas
 
 - Quota de autor/PR é guarda ADICIONAL só para fork. CODEX-01 same-repo e Remediator recebem claim universal sem depender da quota de fork.
-- Chave lógica estável impede múltiplos compromissos após troca do workflow_run_id.
+- Chave lógica estável impede duplicatas: CODEX-01 por PR/HEAD com attempt 0; Remediator por PR/HEAD/família de causa/tentativa, com anti-loop por família entre HEADs. Evidência clean revalidada por fingerprint de changeset + contrato trusted.
 - Writer único reduz superfícies concorrentes e permite orçamento global em um único limite conservador.
 - Incerteza vira bloqueio auditável e não repetição automática de pagamento.
 
@@ -95,9 +102,9 @@ Esta seção é PROPOSTA, não aceite humano.
 
 ## 7. Segurança e protocolo de execução
 
-1. O trusted intake da `main` persiste comentário JSON machine-readable em Issue de inbox dedicado, com `issues:write` e `contents:read` SOMENTE, sem secret de IA/checkout/execução de código PR. Identidade `operation_key=repo/pr/head_sha/operation_kind/authorized_attempt` é estável e não inclui run ID; readback confirma persistência ANTES do wake-up. Retry pode duplicar comentário, nunca operação.
-2. Reconciler trusted da `main` valida autor, schema, trust, PR/HEAD e fingerprint de changeset vinculado a base_ref/merge_base_sha/payload_digest, com paginação completa. Pode rederivar intents elegíveis de PR/HEAD se o ingresso faltar. Mesmo HEAD com fingerprint diferente invalida CODEX-01 clean anterior, mas não admite outra chamada paga: requer novo HEAD; base_tip avançado sem mudar fingerprint revalida apenas CI/mergeabilidade. Issues são dados, nunca instruções.
-3. Writer global único recebe intents elegíveis e persiste um claim universal para fork/same-repo/Remediator: owner `consumer_run_id` + `fencing_epoch` sob `operation_key`. Quota fork `RESERVED → CONSUMED` é guarda adicional na mesma seção crítica, não outro claim. Ao recuperar crash comprovadamente pré-reserva, o escritor mantém claim original, incrementa epoch e revoga executor anterior, após prova negativa de reserva/autorização/dispatch e fim/expiração verificável do worker antigo; qualquer dúvida bloqueia.
+1. Trusted intake na main grava Issue inbox JSON antes do wake-up com issues:write mínimo; identidade de operação específica do consumidor: CODEX-01 `repo/pr/head/CODEX_01/0`, Remediator `repo/pr/head/REMEDIATOR/root_cause_family_id/authorized_attempt`, sem workflow_run_id. A família é calculada e validada pelo reducer trusted a partir de evidência estruturada de CI/finding, sem aceitar ID arbitrário de mensagem, e mantém contador entre HEADs. Duplicatas de inbox não criam chamadas.
+2. Reconciler trusted da main verifica provenance, schema, PR/HEAD e revisão efetiva do changeset **e do contrato de review**. O reviewer obtém manifest `trusted_review_contract_digest=SHA256(canon(workflow,prompt,schema,parser,policy,modelo,configuração e dependências transitivas efetivamente carregadas))` com SHAs do código/config trusted da main, e `review_context_fingerprint=SHA256(canon(repo,pr,base_ref,merge_base_sha,head_sha,payload_digest,trusted_review_contract_digest))`. Verifica digest de contrato atual ANTES de aceitar READY. Novo contrato/changeset com mesmo HEAD invalida clean antigo; se já houve chamada paga, só novo HEAD permite outra. Base_tip sozinho não invalida se fingerprint idêntico, mas requer reconciliação CI/mergeabilidade.
+3. Writer global único aceita intents elegíveis, aplica claim universal e quota adicional fork. CODEX-01 tem `authorized_attempt=0`, uma chamada por PR/HEAD. Remediator opera por `root_cause_family_id` confiável com contador de até três tentativas da mesma causa entre HEADs; duas causas distintas são independentes, rephrasing da mesma causa não reinicia contador. Executor `consumer_run_id`/`fencing_epoch` pode mudar somente por takeover comprovadamente pré-financeiro; incerteza bloqueia.
 4. Só executor do claim/`fencing_epoch` vigente pede budget. O writer persiste cotação imutável: `price_catalog_version`, modelo/operação, limites realmente impostos, máximo em minor units e `pricing_snapshot_digest` canônico. Reserva é idempotente por operation_key; um snapshot novo NÃO gera segunda autorização de chamada. `committed + outstanding_max + new_max <= budget_limit` é validado sob writer único, inclusive para delta eventual de repricing permitido apenas após prova inequívoca de não-dispatch. Epoch obsoleto não custa.
 5. Antes da API, o Budget Broker com chave exclusiva confere claim/epoch, UTC e prova de não-envio, além da igualdade EXATA de modelo, preço/versionamento e limites/caps com `pricing_snapshot_digest` reservado. Configuração diferente bloqueia envio (`BLOCKED_REPRICE`), mantendo custo pessimista e sem retry implícito. Só então registra autorização durável e impõe esses caps à API. `SENT`/`AMBIGUOUS` bloqueiam duplicata. Dispatcher e scripts vêm somente da `main`.
 6. Rollover UTC **não refaz claim lógico** nem quota `CONSUMED`. Se nenhuma chamada foi enviada comprovadamente, o mesmo vencedor pode solicitar reserva FINANCEIRA no novo mês, sob writer global e idempotência da operação; reserva antiga fica conservadoramente comprometida até conciliação terminal. Se não há prova de não-envio, fail-closed.
@@ -107,7 +114,7 @@ Esta seção é PROPOSTA, não aceite humano.
 
 ## 8. Modelo de dados e contrato
 
-Não afeta schema de produto. **INBOX** é conjunto de comments machine-readable de Issue com provenance/PR/HEAD/operation_key; duplicatas são permitidas como intents, não operações pagas. **EVIDÊNCIA CODEX-01** inclui `review_context_fingerprint=SHA256(canon(repo,pr,base_ref,merge_base_sha,head_sha,payload_digest))` e `base_tip_sha` auditável. **LEDGER CANÔNICO** (somente writer global) contém claim, quota fork, `authorized_attempt` (zero em CODEX-01), executor/`fencing_epoch`, reserva financeira e `pricing_snapshot_digest` (catálogo/versão/preços/modelo/caps/retries/extras), período, máximo, geração e estado de dispatch/settlement. Claim único por operation_key não depende de fingerprint mutável nem de novos snapshots. Alterar owner só por fencing antes de efeito financeiro; não há ACID implícito entre Issue/Git refs.
+Não afeta schema de produto. INBOX é Issue comments machine-readable com provenance e intenção. EVIDÊNCIA CODEX-01 fixa base_ref/merge_base/head/payload_digest e `trusted_review_contract_digest` da closure de workflow/prompt/schema/parser/policy/modelo/dependências da main (com `main_source_commit_sha` auditável). LEDGER CANÔNICO contém claim, quota fork, `operation_kind`, `authorized_attempt=0` para CODEX-01 ou `root_cause_family_id` para Remediator, contador anti-loop durável por família/repo/PR, `consumer_run_id`, fencing_epoch, reservas financeiras, pricing_snapshot_digest, período e estado de dispatch. Nenhuma garantia ACID indevida por Git ref, nenhuma execução de PR/fork no trusted intake.
 
 ## 9. Operação, custos e observabilidade
 
@@ -119,9 +126,9 @@ Não afeta schema de produto. **INBOX** é conjunto de comments machine-readable
 
 ## 10. Migração, rollout e canary
 
-1. Obter `review-sdd` para SDD-0001 v1.5, `review-adr` para ADR-0014 rev.4 e aprovação/aceite humano explícitos. Só após aceitação da sucessora ADR-0013 rev.1 poderá mudar a `Superseded` sem reescrever a decisão histórica.
+1. Obter `review-sdd` para SDD-0001 v1.6 e `review-adr` para ADR-0014 rev.5, seguidos de aprovação/aceite humano explícitos. Só após aceite da sucessora ADR-0013 rev.1 pode mudar para `Superseded`, preservando seções decisórias históricas.
 2. Bootstrap em PR separado: trusted intake com issues:write mínimo, Issue inbox, scanner de PR/HEAD, dispatcher `main`-only, writer global, Budget Broker, Quota Broker fork e Trusted Publisher. Audit tokens, branches/ref dispatch e todo mutador.
-3. Canary SEM API paga: 3 consumidores, seis PRs, duplicatas intake, perda de wake-up, main-only dispatcher, takeover fenced, stale Git 5→2, UTC e readback; testes adicionais: mudança de base_ref/merge-base/digest no mesmo HEAD bloqueia CODEX-01 pago novo e invalida evidência anterior; alteração do catálogo/caps após reserva bloqueia dispatch; tentativa CODEX-01 >=1 é negada antes de custo.
+3. Canary SEM API paga: três consumidores e seis PRs, concorrência, error readback, FIFO/reconciler sem fila implicitamente durável, trusted main, UTC/fencing, fast-forward stale 5→2, alteração de preços/caps; ADICIONALMENTE: alterar workflow, prompt, schema e dependência transitiva do reviewer na main após clean e exigir invalidação de READY, sem segunda IA paga no mesmo HEAD; duas causas distintas de Remediator no mesmo HEAD/tentativa 0 geram chaves diferentes e mesma causa entre HEADs conserva 3-attempt anti-loop.
 4. Critério crítico: tentativa de fast-forward com dados obsoletos (regressão 5→2) deve falhar no guard do writer ou motivar adoção de storage CAS server-side. É insuficiente que commits irmãos resultem 200/422.
 5. Verificar que escritor privilegiado da `main` não executa código de fork nem expõe secrets; `OPENAI_API_KEY` somente no Budget Broker. Sem guardas completos, canary pago não inicia.
 6. Apenas depois de todos os gates, modelo/preços/tetos humanos e CODEX-01 final, permitir canary pago controlado em escopo restrito. `DONE_ALLOWED`/PHASE-0-G continuam bloqueados até validação real pós-merge.
@@ -137,7 +144,7 @@ Não afeta schema de produto. **INBOX** é conjunto de comments machine-readable
 - ADR-0013 rev.1: `Accepted`, vigente enquanto esta ADR estiver `Proposed`. O conteúdo decisório aceito não foi editado; transição a `Superseded` só depois do aceite desta sucessora.
 - ADR-0012 rev.7: `Superseded`, decisão histórica preservada.
 - ADR-0010: mantém merge humano obrigatório, CI e gates.
-- SDD-0001 v1.5: mesma proposta sincronizada, ainda em revisão; aprovação humana independente.
+- SDD-0001 v1.6: proposta correspondente em review, ainda não aprovada.
 
 ## 13. Pareceres dos especialistas impactados
 
@@ -151,7 +158,7 @@ Não afeta schema de produto. **INBOX** é conjunto de comments machine-readable
 ## 14. Riscos residuais e evidência externa
 
 - Evidência real do CAS-Lab: [relatório](https://github.com/RamonRDR/SaaS-CAS-Lab/blob/main/docs/RESULTS_2026-10-09.md), [run com 15 jobs aprovados](https://github.com/RamonRDR/SaaS-CAS-Lab/actions/runs/37873320199); ambos com cleanup de refs. Os testes provaram concorrência de commits irmãos e refutaram CAS semântico de `force:false`.
-- **Não comprovado:** intake/serialização real no SaaS, main-only dispatcher sob eventos adversariais, fencing, crashes de transporte, preço real, reruns e alterações efetivas de merge-base ou caps. Os novos invariantes exigem canary/validação antes de habilitar IA paga, não constituem risco aceito.
+- **Não comprovado:** fechamento transitivo real do manifest confiável, revalidação de contrato no READY, identidade de causa raiz normalizada sem spoof/rephrasing, writer global efetivo, price/cap dispatch, main-only pipeline e crash real. Canaries e gates humanos obrigatórios antes de API paga; o CAS-Lab sozinho não os comprova.
 - Nenhuma mudança nesta ADR autoriza chamada paga ou merge sem decisão humana.
 
 ## 15. Histórico de revisão
@@ -161,21 +168,22 @@ Não afeta schema de produto. **INBOX** é conjunto de comments machine-readable
 | 2026-10-08 | Product & SDD | Proposta sucessora à ADR-0013 para corrigir reserva monetária antes de quota claim | rev.1 `Proposed` |
 | 2026-10-09 | Product & SDD | Revisão material: claim universal, writer global e contraexemplo CAS-Lab 5→2 | rev.2 `Proposed` |
 | 2026-10-09 | Product & SDD | P1/P1/P2: ingresso independente, dispatch main-only e fencing pré-financeiro | rev.3 `Proposed` |
-| 2026-10-09 | Product & SDD | P1/P1/P2: fingerprint de changeset, preço/caps congelados e CODEX-01 attempt=0 | rev.4 `Proposed` |
+| 2026-10-09 | Product & SDD | P1/P1/P2: fingerprint de changeset, preço/caps imutáveis e CODEX-01 attempt 0 | rev.4 `Proposed` |
+| 2026-10-09 | Product & SDD | P1/P2: closure de contrato trusted no review e família de causa raiz do Remediator | rev.5 `Proposed` |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Pendente para revisão decisória rev.4 e HEAD final
-- **Revisão revisada:** Não aplicável até review da rev.4
+- **Parecer de `review-adr`:** Pendente para ADR-0014 rev.5, sujeito à revisão do HEAD final
+- **Revisão revisada:** Não aplicável até review-adr rev.5
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** Pendente
-- **Pendências bloqueantes:** validar os três invariantes de identidade de changeset, snapshot financeiro e tentativa fixa; review técnico e aceite humano pendentes.
+- **Pendências bloqueantes:** verificar versão confiável de todos os componentes de review e chave Remediator com causa raiz/anti-loop por família entre HEADs, além de review e gate humano.
 - **Pendências não bloqueantes:** implementação, canaries de writer global e orçamento/secret antes de API paga.
 
 ## 17. Aceite humano
 
 - **Aceito:** Não
 - **Responsável humano:** Ramon Rodriguez
-- **Revisão aceita:** Não aplicável à rev.4 proposta
+- **Revisão aceita:** Não aplicável à rev.5 proposta
 - **Data:** Pendente
-- **Registro:** Aceite humano pendente para rev.4. ADR-0013 rev.1 Accepted (#6070726649) não é substituída antecipadamente.
+- **Registro:** Aceite humano pendente para rev.5. ADR-0013 rev.1 continua Accepted (#6070726649) até decisão posterior.
