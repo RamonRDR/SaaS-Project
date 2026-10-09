@@ -111,4 +111,4 @@ Conteúdo em português do Brasil. Identificadores técnicos e exemplos de códi
 | --- | --- | ---: | --- | --- | --- |
 | [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended, decisão histórica substituída pela ADR-0013 | 7 | Pronto para aceite humano | `Superseded` | Registrado |
 | [ADR-0013](./ADR-0013-runtime-unattended-hardening.md) | Runtime unattended: budget global, merge-base e hardening de fork | 1 | Pronto para aceite humano | `Accepted` | Registrado |
-| [ADR-0014](./ADR-0014-claim-before-budget.md) | Claim universal, ingresso durável, reentrada confiável e writer financeiro global | 3 | Nova revisão pendente | `Proposed` | Pendente |
+| [ADR-0014](./ADR-0014-claim-before-budget.md) | Claim universal, writer financeiro, changeset fingerprint e cotação versionada | 4 | Nova revisão pendente | `Proposed` | Pendente |
