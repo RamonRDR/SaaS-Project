@@ -49,6 +49,8 @@ def parse_control(body: object) -> int | None:
     issues = re.findall(r"^CONTROL_ISSUE: ([^\r\n]+)$", body, re.MULTILINE)
     if not modes and not issues:
         return None
+    if modes == ["NONE"] and len(issues) <= 1:
+        return None
     if modes != ["A"] or len(issues) != 1:
         raise ClosedGate("INVALID_CONTROL_FIELDS")
     return positive_number(issues[0])
