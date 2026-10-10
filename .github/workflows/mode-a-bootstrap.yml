@@ -45,8 +45,6 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check ruff==0.14.0
       - name: CODE-01 - Ruff lint
         run: ruff check .github/scripts/mode_a_bootstrap.py .github/scripts/test_mode_a_bootstrap.py
-      - name: Diagnóstico temporário de formatação
-        run: ruff format --diff .github/scripts/mode_a_bootstrap.py .github/scripts/test_mode_a_bootstrap.py
       - name: CODE-01 - Ruff format
         run: ruff format --check .github/scripts/mode_a_bootstrap.py .github/scripts/test_mode_a_bootstrap.py
       - name: TEST-01 - Testar bootstrap seguro
