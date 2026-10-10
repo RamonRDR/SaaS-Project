@@ -67,12 +67,15 @@ class FakeAPI:
             return self.comments[-1]
         if method == "GET" and endpoint == "/issues/99":
             return {"state": "open", "body": "MODE_A_INBOX_V1\nsomente intents"}
-        if method == "GET" and endpoint == "/issues/2":
-            return {"state": "open", "body": "Outro controle"}
-        if method == "GET" and endpoint == "/issues/1":
+        if method == "GET" and endpoint in {"/issues/1", "/issues/2"}:
             return {
                 "state": "open" if self.control_open else "closed",
-                "body": "Issue de controle",
+                "body": (
+                    "ORCHESTRATOR_MODE: A\n"
+                    "PHASE: PHASE-0-G\n"
+                    "OBJECTIVE: Runtime unattended\n"
+                ),
+                "user": {"login": "RamonRDR"},
             }
         if method == "GET" and endpoint.startswith("/pulls/"):
             return self.prs[int(endpoint.rsplit("/", 1)[1])]
@@ -120,6 +123,21 @@ class InboxTests(unittest.TestCase):
         result = MODULE.ingest(api, 99, MAIN_SHA, None)
         self.assertEqual(result["new_intents_verified"], 2)
         self.assertEqual(MODULE.reconcile(api, 99, MAIN_SHA)["missing_requests"], [])
+
+    def test_invalid_open_pr_does_not_block_other_candidates(self):
+        api = FakeAPI([
+            pr(17, body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: broken"),
+            pr(18, SHA_B),
+        ])
+        result = MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(result["new_intents_verified"], 1)
+        self.assertEqual(api.posts, 1)
+        self.assertEqual(api.comments[0]["user"], BOT)
+
+    def test_inbox_cannot_be_control_issue(self):
+        api = FakeAPI([pr(body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 99")])
+        with self.assertRaisesRegex(MODULE.ClosedGate, "CONTROL_EQUALS_INBOX"):
+            MODULE.ingest(api, 99, MAIN_SHA, 17)
 
     def test_untrusted_comment_cannot_forge_pending(self):
         api = FakeAPI()
