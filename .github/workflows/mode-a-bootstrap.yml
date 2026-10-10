@@ -47,6 +47,14 @@ jobs:
         run: ruff check .github/scripts/mode_a_bootstrap.py .github/scripts/test_mode_a_bootstrap.py
       - name: CODE-01 - Ruff format
         run: ruff format --check .github/scripts/mode_a_bootstrap.py .github/scripts/test_mode_a_bootstrap.py
+      - name: SEC-02 - Instalar auditor de dependências
+        run: python3 -m pip install --disable-pip-version-check pip-audit==2.9.0
+      - name: SEC-02 - Auditar dependência de CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'ruff==0.14.0\n' > "${RUNNER_TEMP}/mode-a-ci-requirements.txt"
+          python3 -m pip_audit --disable-pip --no-deps -r "${RUNNER_TEMP}/mode-a-ci-requirements.txt"
       - name: TEST-01 - Testar bootstrap seguro
         run: python3 -m unittest discover -s .github/scripts -p 'test_mode_a_bootstrap.py' -v
 
