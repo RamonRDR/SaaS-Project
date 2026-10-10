@@ -65,7 +65,8 @@ def make_intent(pr: dict[str, Any], main_sha: str) -> dict[str, Any] | None:
         raise ClosedGate("INVALID_PR_REFS")
     if pr.get("state") != "open" or base.get("ref") != "main":
         return None
-    if base.get("repo", {}).get("full_name") != REPOSITORY:
+    base_repo = base.get("repo")
+    if not isinstance(base_repo, dict) or base_repo.get("full_name") != REPOSITORY:
         raise ClosedGate("INVALID_PR_BASE")
     control_issue = parse_control(pr.get("body") or "")
     if control_issue is None:
@@ -197,8 +198,16 @@ class GitHubAPI:
         try:
             with urllib.request.urlopen(request, timeout=15) as response:
                 return json.loads(response.read(2_000_000))
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
-            # Não inserir URL, cabeçalhos, token ou payload em saída/log.
+        except urllib.error.HTTPError as exc:
+            if (
+                exc.code == 404
+                and method == "GET"
+                and endpoint.startswith("/issues/")
+            ):
+                raise ClosedGate("ISSUE_NOT_FOUND") from exc
+            raise ClosedGate("GITHUB_API_UNCERTAIN") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            # Nunca inserir URL, headers, token ou payload externo em logs.
             raise ClosedGate("GITHUB_API_UNCERTAIN") from exc
 
     def pages(self, path: str) -> list[dict[str, Any]]:
@@ -221,7 +230,8 @@ def validate_inbox(api: GitHubAPI, inbox_number: int) -> None:
     if (
         not isinstance(issue, dict)
         or issue.get("state") != "open"
-        or issue.get("body", "").splitlines()[0:1] != [INBOX_MARKER]
+        or not isinstance(issue.get("body"), str)
+        or issue["body"].splitlines()[0:1] != [INBOX_MARKER]
         or "pull_request" in issue
     ):
         raise ClosedGate("INVALID_INBOX_ISSUE")
@@ -237,8 +247,50 @@ def records(api: GitHubAPI, inbox_number: int) -> list[dict[str, Any]]:
     return valid
 
 
+def validate_control_issue(
+    api: GitHubAPI, control_number: int, inbox_number: int
+) -> None:
+    """Somente issue autorada pelo dono e marcada como controle Mode A."""
+    if control_number == inbox_number:
+        raise ClosedGate("CONTROL_EQUALS_INBOX")
+    try:
+        issue = api.request("GET", f"/issues/{control_number}")
+    except ClosedGate as exc:
+        if str(exc) == "ISSUE_NOT_FOUND":
+            raise ClosedGate("INVALID_CONTROL_ISSUE") from exc
+        raise
+    if not isinstance(issue, dict):
+        raise ClosedGate("INVALID_CONTROL_ISSUE")
+    body = issue.get("body")
+    author = issue.get("user")
+    if (
+        issue.get("state") != "open"
+        or "pull_request" in issue
+        or not isinstance(body, str)
+        or not isinstance(author, dict)
+        or author.get("login") != "RamonRDR"
+        or len(body.encode("utf-8")) > MAX_BODY_BYTES
+    ):
+        raise ClosedGate("INVALID_CONTROL_ISSUE")
+    lines = body.splitlines()
+    modes = [line for line in lines if line.startswith("ORCHESTRATOR_MODE:")]
+    phases = [line for line in lines if line.startswith("PHASE:")]
+    objectives = [line for line in lines if line.startswith("OBJECTIVE:")]
+    if (
+        modes != ["ORCHESTRATOR_MODE: A"]
+        or len(phases) != 1
+        or not re.fullmatch(r"PHASE: PHASE-[A-Z0-9-]+", phases[0])
+        or len(objectives) != 1
+        or not objectives[0].partition(":")[2].strip()
+    ):
+        raise ClosedGate("INVALID_CONTROL_SCHEMA")
+
+
 def current_intents(
-    api: GitHubAPI, main_sha: str, only: int | None = None
+    api: GitHubAPI,
+    main_sha: str,
+    only: int | None = None,
+    inbox_number: int = 0,
 ) -> list[dict]:
     if only is not None:
         candidates = [api.request("GET", f"/pulls/{only}")]
@@ -249,20 +301,24 @@ def current_intents(
         if not isinstance(item, dict):
             raise ClosedGate("INVALID_PR_ITEM")
         number = positive_number(item.get("number"))
-        # O HEAD e o estado são reconciliados pela API antes da decisão.
         pr = api.request("GET", f"/pulls/{number}")
-        intent = make_intent(pr, main_sha)
-        if intent is not None:
-            issue = api.request("GET", f"/issues/{intent['control_issue']}")
-            if (
-                not isinstance(issue, dict)
-                or issue.get("state") != "open"
-                or "pull_request" in issue
-            ):
-                raise ClosedGate("INVALID_CONTROL_ISSUE")
-            intents.append(intent)
+        try:
+            intent = make_intent(pr, main_sha)
+        except ClosedGate:
+            # Um PR malformado não pode impedir recuperação dos demais.
+            if only is not None:
+                raise
+            continue
+        if intent is None:
+            continue
+        try:
+            validate_control_issue(api, intent["control_issue"], inbox_number)
+        except ClosedGate as exc:
+            if only is not None or str(exc) == "GITHUB_API_UNCERTAIN":
+                raise
+            continue
+        intents.append(intent)
     return intents
-
 
 def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
     validate_inbox(api, inbox)
@@ -270,7 +326,7 @@ def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
     by_id: dict[str, list[dict]] = {}
     for entry in entries:
         by_id.setdefault(entry["request_id"], []).append(entry)
-    live = current_intents(api, main_sha)
+    live = current_intents(api, main_sha, inbox_number=inbox)
     for intent in live:
         for existing in by_id.get(intent["request_id"], []):
             verify_request_context(existing, intent)
@@ -300,7 +356,7 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
     by_id: dict[str, list[dict]] = {}
     for item in before:
         by_id.setdefault(item["request_id"], []).append(item)
-    intents = current_intents(api, main_sha, only)
+    intents = current_intents(api, main_sha, only, inbox)
     new = 0
     for intent in intents:
         key = intent["request_id"]
