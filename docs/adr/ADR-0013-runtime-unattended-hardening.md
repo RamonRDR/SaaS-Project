@@ -31,7 +31,7 @@ As seções 1 a 14 compõem o conteúdo decisório. Qualquer mudança material a
 
 ## 1. Contexto
 
-O projeto exige um runtime unattended que continue o Mode A sem máquina local e sem mensagens humanas operacionais. A arquitetura cloud-native foi aceita na **ADR-0012 rev.7** com evidência humana no PR #2 (comentário `HUMAN_APPROVAL` #6043168597). Ajustes materiais posteriores não podem sobrescrever aquela decisão histórica; esta **ADR-0013 rev.1**, após parecer técnico favorável e aceite humano próprios, formaliza o hardening adicional e sucede a ADR-0012 rev.7.
+O projeto exige um runtime unattended que continue o Mode A sem máquina local e sem mensagens humanas operacionais. A arquitetura cloud-native foi aceita na **ADR-0012 rev.7** com evidência humana no PR #2 (comentário `HUMAN_APPROVAL` #6043168597). Ajustes materiais posteriores não podem sobrescrever aquela decisão histórica; esta **ADR-0013 rev.1** propõe o hardening adicional e somente poderá substituí-la após revisão favorável e aceite humano próprios.
 
 Um desenho experimental anterior usou um runtime externo reativo como elo entre eventos do GitHub e o ciclo CI/review. A continuidade real não foi suficientemente determinística. Esse experimento foi encerrado e não foi importado para o histórico público.
 
@@ -281,7 +281,7 @@ Falha de GitHub ou OpenAI nunca é convertida em sucesso presumido.
 
 - **ADR-0010 — CI/CD e merge:** permanece `Accepted`; este ADR estende sua governança para o runtime unattended.
 - **ADR-0011 — experimento histórico privado:** ID consumido por arquitetura descartada, não importada ao Git público e não reutilizável.
-- **ADR-0012 rev.7 — decisão histórica:** foi aceita em 2026-10-07 e seu conteúdo decisório permanece preservado. Após o aceite humano da ADR-0013 rev.1 em 2026-10-08, seu status foi atualizado para `Superseded` com referência explícita à sucessora, sem reescrita da decisão original.
+- **ADR-0012 rev.7 — decisão aceita:** permanece `Accepted` e vigente, com conteúdo decisório preservado exatamente como aprovado em 2026-10-07. Somente após o aceite humano desta ADR-0013 a ADR-0012 poderá ser marcada `Superseded`, mediante atualização de status/referência, sem reescrever o conteúdo decisório.
 
 ## 13. Pareceres dos especialistas impactados
 
@@ -306,6 +306,7 @@ Antes de qualquer canary pago é obrigatório o Budget Broker com orçamento pos
 | 2026-10-08 | Product & SDD | Proposta sucessora à ADR-0012 rev.7 para hardening de fork, merge-base, credenciais exclusivas e orçamento global com revalidação do período UTC no claim/dispatch | Revisão decisória 1 `Proposed` |
 | 2026-10-08 | Ramon Rodriguez | Aceite humano expresso em ChatGPT, registrado no PR #2 comentário #6070726649 | Revisão decisória 1 `Accepted` |
 | 2026-10-09 | Ramon Rodriguez | Sucessão após aceite humano da ADR-0014 rev.5, registrado no PR #2 comentário #6091567757; conteúdo decisório 1 a 14 preservado | rev.1 `Superseded` por ADR-0014 rev.5 |
+| 2026-10-09 | Orchestrator / Tech Lead | Restauração byte a byte das seções decisórias 1–14 ao snapshot aceito `ca7eec7` (blob `cf37709abe53b18a9148ab7f4e55e88abd6ac10a`), revertendo somente duas alterações editoriais retroativas detectadas pelo CODEX-01 | Sem mudança de decisão/revisão/aceite; mantém `Superseded` |
 
 ## 16. Revisão técnica
 
