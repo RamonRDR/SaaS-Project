@@ -199,11 +199,7 @@ class GitHubAPI:
             with urllib.request.urlopen(request, timeout=15) as response:
                 return json.loads(response.read(2_000_000))
         except urllib.error.HTTPError as exc:
-            if (
-                exc.code == 404
-                and method == "GET"
-                and endpoint.startswith("/issues/")
-            ):
+            if exc.code == 404 and method == "GET" and endpoint.startswith("/issues/"):
                 raise ClosedGate("ISSUE_NOT_FOUND") from exc
             raise ClosedGate("GITHUB_API_UNCERTAIN") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
@@ -319,6 +315,7 @@ def current_intents(
             continue
         intents.append(intent)
     return intents
+
 
 def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
     validate_inbox(api, inbox)
