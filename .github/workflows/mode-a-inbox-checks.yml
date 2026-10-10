@@ -1,0 +1,50 @@
+name: Mode A Inbox Checks
+
+on:
+  pull_request:
+    paths:
+      - .github/scripts/mode_a_inbox.py
+      - .github/scripts/test_mode_a_inbox.py
+      - .github/workflows/mode-a-intake.yml
+      - .github/workflows/mode-a-reconciler.yml
+      - .github/workflows/mode-a-inbox-checks.yml
+      - docs/engineering/MODE_A_DURABLE_INBOX.md
+  push:
+    branches:
+      - main
+    paths:
+      - .github/scripts/mode_a_inbox.py
+      - .github/scripts/test_mode_a_inbox.py
+      - .github/workflows/mode-a-intake.yml
+      - .github/workflows/mode-a-reconciler.yml
+      - .github/workflows/mode-a-inbox-checks.yml
+      - docs/engineering/MODE_A_DURABLE_INBOX.md
+
+permissions:
+  contents: read
+
+jobs:
+  inbox-tests:
+    name: inbox-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          persist-credentials: false
+      - name: Compilar Python
+        run: python3 -m compileall -q .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
+      - name: Instalar ferramentas CI
+        run: python3 -m pip install --disable-pip-version-check ruff==0.14.0 pip-audit==2.9.0
+      - name: CODE-01 Ruff lint
+        run: ruff check .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
+      - name: CODE-01 Ruff formatter
+        run: ruff format --check .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
+      - name: SEC-02 dependências CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'ruff==0.14.0\npip-audit==2.9.0\n' > "$RUNNER_TEMP/mode-a-ci.txt"
+          python3 -m pip_audit --disable-pip --no-deps -r "$RUNNER_TEMP/mode-a-ci.txt"
+      - name: TEST-01 e TEST-02 inbox
+        run: python3 -m unittest discover -s .github/scripts -p 'test_mode_a_inbox.py' -v

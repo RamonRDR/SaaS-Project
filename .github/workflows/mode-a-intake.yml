@@ -1,0 +1,46 @@
+name: Mode A Durable Intake
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+  schedule:
+    - cron: "11 * * * *"
+
+# Única capacidade de escrita: comentário em issue inbox já validada.
+# Nunca usar checkout de PR ou ferramentas fornecidas pelo fork.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: mode-a-intake-trusted
+  cancel-in-progress: false
+
+jobs:
+  durable-intake:
+    name: durable-intake
+    if: github.repository == 'RamonRDR/SaaS-Project' && vars.MODE_A_INTAKE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout control plane confiável da main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Guard de contexto e persistência PENDING
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          MODE_A_INBOX_ISSUE: ${{ vars.MODE_A_INBOX_ISSUE }}
+          MODE_A_INTAKE_ENABLED: ${{ vars.MODE_A_INTAKE_ENABLED }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/mode_a_inbox.py intake

@@ -1,0 +1,36 @@
+name: Mode A Inbox Reconciler
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types:
+      - mode_a_wakeup
+  schedule:
+    - cron: "29 */6 * * *"
+
+# Reconciliação não detém permissão de escrita.
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  reconcile-read-only:
+    name: reconcile-read-only
+    if: github.repository == 'RamonRDR/SaaS-Project' && vars.MODE_A_INBOX_RECONCILE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout confiável da main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Inspecionar inbox e PRs sem mutação
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+          MODE_A_INBOX_ISSUE: ${{ vars.MODE_A_INBOX_ISSUE }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/mode_a_inbox.py reconcile
