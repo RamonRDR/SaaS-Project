@@ -56,9 +56,9 @@ jobs:
           persist-credentials: false
       - name: Emitir diagnóstico sem mutação
         env:
-          GITHUB_EVENT_PATH: ${{ github.event_path }
-          GITHUB_EVENT_NAME: ${{ github.event_name }
-          GITHUB_REPOSITORY: ${{ github.repository }
-          GITHUB_REF: ${{ github.ref }
-          INPUT_PR_NUMBER: ${{ inputs.pr_number || '' }
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.ref }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number || '' }}
         run: python3 .github/scripts/mode_a_bootstrap.py
