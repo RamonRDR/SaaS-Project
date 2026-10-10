@@ -96,6 +96,23 @@ def make_intent(pr: dict[str, Any], main_sha: str) -> dict[str, Any] | None:
     }
 
 
+def verify_request_context(saved: dict[str, Any], current: dict[str, Any]) -> None:
+    """Uma operation key não pode ser reutilizada com outro contexto."""
+    material = (
+        "repository",
+        "pr_number",
+        "head_sha",
+        "base_ref",
+        "control_issue",
+        "operation_kind",
+        "authorized_attempt",
+        "operation_key",
+        "request_id",
+    )
+    if any(saved[key] != current[key] for key in material):
+        raise ClosedGate("REQUEST_CONTEXT_CHANGED")
+
+
 def serialize_intent(intent: dict[str, Any]) -> str:
     return COMMENT_PREFIX + canonical(intent)
 
@@ -254,6 +271,9 @@ def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
     for entry in entries:
         by_id.setdefault(entry["request_id"], []).append(entry)
     live = current_intents(api, main_sha)
+    for intent in live:
+        for existing in by_id.get(intent["request_id"], []):
+            verify_request_context(existing, intent)
     missing = sorted(x["request_id"] for x in live if x["request_id"] not in by_id)
     stale = sum(
         1
@@ -277,11 +297,16 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
     validate_inbox(api, inbox)
     before = records(api, inbox)
     known = {item["request_id"] for item in before}
+    by_id: dict[str, list[dict]] = {}
+    for item in before:
+        by_id.setdefault(item["request_id"], []).append(item)
     intents = current_intents(api, main_sha, only)
     new = 0
     for intent in intents:
         key = intent["request_id"]
         if key in known:
+            for existing in by_id[key]:
+                verify_request_context(existing, intent)
             continue
         # Novo readback do PR evita gravar HEAD obsoleto por corrida óbvia.
         fresh = api.request("GET", f"/pulls/{intent['pr_number']}")
@@ -295,10 +320,10 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
             pass
         after = records(api, inbox)
         matches = [x for x in after if x["request_id"] == key]
-        if not matches or any(
-            x["operation_key"] != intent["operation_key"] for x in matches
-        ):
+        if not matches:
             raise ClosedGate("INBOX_READBACK_UNCERTAIN")
+        for recorded in matches:
+            verify_request_context(recorded, intent)
         known.add(key)
         new += 1
     return {
