@@ -36,6 +36,8 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check ruff==0.14.0 pip-audit==2.9.0
       - name: CODE-01 Ruff lint
         run: ruff check .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
+      - name: Diagnóstico Ruff
+        run: ruff format --diff .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py || true
       - name: CODE-01 Ruff formatter
         run: ruff format --check .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
       - name: SEC-02 dependências CI
