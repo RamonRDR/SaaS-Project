@@ -117,9 +117,18 @@ def parse_comment(comment: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(intent, dict) or serialize_intent(intent) != body:
         raise ClosedGate("MODIFIED_INBOX_RECORD")
     required = {
-        "schema", "state", "repository", "pr_number", "head_sha", "base_ref",
-        "control_issue", "operation_kind", "authorized_attempt",
-        "operation_key", "request_id", "main_source_sha",
+        "schema",
+        "state",
+        "repository",
+        "pr_number",
+        "head_sha",
+        "base_ref",
+        "control_issue",
+        "operation_kind",
+        "authorized_attempt",
+        "operation_key",
+        "request_id",
+        "main_source_sha",
     }
     if set(intent) != required:
         raise ClosedGate("INVALID_INBOX_SCHEMA")
@@ -129,8 +138,7 @@ def parse_comment(comment: dict[str, Any]) -> dict[str, Any] | None:
                 "state": "open",
                 "number": intent["pr_number"],
                 "body": (
-                    "ORCHESTRATOR_MODE: A\n"
-                    f"CONTROL_ISSUE: {intent['control_issue']}"
+                    f"ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: {intent['control_issue']}"
                 ),
                 "base": {"ref": "main", "repo": {"full_name": REPOSITORY}},
                 "head": {"sha": intent["head_sha"]},
@@ -210,7 +218,9 @@ def records(api: GitHubAPI, inbox_number: int) -> list[dict[str, Any]]:
     return valid
 
 
-def current_intents(api: GitHubAPI, main_sha: str, only: int | None = None) -> list[dict]:
+def current_intents(
+    api: GitHubAPI, main_sha: str, only: int | None = None
+) -> list[dict]:
     if only is not None:
         candidates = [api.request("GET", f"/pulls/{only}")]
     else:
@@ -242,11 +252,10 @@ def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
     for entry in entries:
         by_id.setdefault(entry["request_id"], []).append(entry)
     live = current_intents(api, main_sha)
-    missing = sorted(
-        x["request_id"] for x in live if x["request_id"] not in by_id
-    )
+    missing = sorted(x["request_id"] for x in live if x["request_id"] not in by_id)
     stale = sum(
-        1 for record in entries
+        1
+        for record in entries
         if record["request_id"] not in {i["request_id"] for i in live}
     )
     return {
@@ -284,7 +293,9 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
             pass
         after = records(api, inbox)
         matches = [x for x in after if x["request_id"] == key]
-        if not matches or any(x["operation_key"] != intent["operation_key"] for x in matches):
+        if not matches or any(
+            x["operation_key"] != intent["operation_key"] for x in matches
+        ):
             raise ClosedGate("INBOX_READBACK_UNCERTAIN")
         known.add(key)
         new += 1
@@ -313,12 +324,16 @@ def main() -> int:
             if os.getenv("MODE_A_INTAKE_ENABLED") != "true":
                 raise ClosedGate("INTAKE_NOT_ENABLED")
             if os.getenv("GITHUB_EVENT_NAME") not in {
-                "pull_request_target", "schedule", "workflow_dispatch"
+                "pull_request_target",
+                "schedule",
+                "workflow_dispatch",
             }:
                 raise ClosedGate("UNTRUSTED_EVENT")
         else:
             if os.getenv("GITHUB_EVENT_NAME") not in {
-                "schedule", "workflow_dispatch", "repository_dispatch"
+                "schedule",
+                "workflow_dispatch",
+                "repository_dispatch",
             }:
                 raise ClosedGate("UNTRUSTED_EVENT")
         inbox = positive_number(os.getenv("MODE_A_INBOX_ISSUE"))
