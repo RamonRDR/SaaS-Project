@@ -27,9 +27,9 @@ def pr(number: int = 17, sha: str = SHA_A, body: str | None = None) -> dict:
     return {
         "number": number,
         "state": "open",
-        "body": body if body is not None else (
-            "ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 1\n"
-        ),
+        "body": body
+        if body is not None
+        else ("ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 1\n"),
         "base": {
             "ref": "main",
             "repo": {"full_name": MODULE.REPOSITORY},
@@ -191,7 +191,9 @@ class InboxTests(unittest.TestCase):
                     MODULE.make_intent(pr(body=body), MAIN_SHA)
 
     def test_non_mode_a_pr_is_ineligible(self):
-        self.assertIsNone(MODULE.make_intent(pr(body="ORCHESTRATOR_MODE: NONE"), MAIN_SHA))
+        self.assertIsNone(
+            MODULE.make_intent(pr(body="ORCHESTRATOR_MODE: NONE"), MAIN_SHA)
+        )
 
     def test_missing_or_misconfigured_inbox_blocks(self):
         api = FakeAPI()
