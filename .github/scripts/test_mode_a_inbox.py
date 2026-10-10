@@ -169,9 +169,7 @@ class InboxTests(unittest.TestCase):
     def test_changed_control_on_same_head_blocks_reuse(self):
         api = FakeAPI()
         MODULE.ingest(api, 99, MAIN_SHA, 17)
-        api.prs[17] = pr(
-            body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 2\n"
-        )
+        api.prs[17] = pr(body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 2\n")
         with self.assertRaisesRegex(MODULE.ClosedGate, "REQUEST_CONTEXT_CHANGED"):
             MODULE.reconcile(api, 99, MAIN_SHA)
         with self.assertRaisesRegex(MODULE.ClosedGate, "REQUEST_CONTEXT_CHANGED"):
