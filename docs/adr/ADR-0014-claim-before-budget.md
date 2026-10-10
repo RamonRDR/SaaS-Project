@@ -15,6 +15,34 @@
 - **ADRs relacionados:** ADR-0013 rev.1 (`Superseded`, histórica); ADR-0012 rev.7 (`Superseded`); ADR-0010
 - **PR / issue relacionada:** PR #2 / Issue #1
 
+### Estados permitidos
+
+- `Proposed`: em elaboração ou revisão;
+- `Accepted`: revisão técnica favorável com parecer `Pronto para aceite humano`, nenhuma pendência bloqueante e aceite humano explicitamente registrado;
+- `Rejected`: proposta rejeitada, preservada para histórico;
+- `Superseded`: substituída por ADR posterior identificado;
+- `Deprecated`: decisão anteriormente válida que deixou de ser recomendada.
+
+Nenhum agente de IA pode alterar sozinho o status para `Accepted`.
+
+Um ADR com parecer `Retornar para ajustes` ou `Bloqueado` não pode seguir para `Accepted`, mesmo que exista manifestação humana de concordância. Primeiro as pendências bloqueantes precisam ser resolvidas e o `review-adr` deve emitir novo parecer `Pronto para aceite humano`.
+
+### Revisão decisória e validade do parecer
+
+As seções **1 a 14** compõem o conteúdo decisório do ADR.
+
+Antes de `Accepted`:
+
+- qualquer alteração material nas seções 1 a 14 incrementa `Revisão decisória`;
+- essa alteração invalida automaticamente qualquer parecer técnico anterior;
+- o status permanece ou retorna para `Proposed`;
+- o ADR precisa passar novamente por `review-adr`;
+- um aceite humano ainda não concluído não pode reutilizar parecer de revisão decisória anterior.
+
+As seções 15 a 17 registram histórico, revisão técnica e aceite. Atualizações puramente de auditoria nessas seções não incrementam a revisão decisória desde que não alterem o conteúdo da decisão.
+
+Depois de `Accepted`, o conteúdo decisório das seções 1 a 14 é imutável. Mudança material exige novo ADR sucessor; não reescrever a decisão histórica aceita.
+
 Esta ADR chegou a `Accepted` por decisão humana expressa em ChatGPT, registrada no PR #2 comentário #6091567757. Nenhum agente aceitou a decisão por conta própria. A ADR-0013 rev.1 passa a `Superseded`. As seções decisórias 1 a 14 são imutáveis após o aceite.
 
 > **Nota administrativa posterior ao aceite (2026-10-09):** as expressões de proposta e estados passados nas seções decisórias 1–14 são parte do snapshot que recebeu parecer e aceite humano, preservado **byte a byte** do blob `8f97b80946e638673e21da57e76773b974ee36b1`. O estado efetivo atual nos metadados é ADR-0014 rev.5 `Accepted`, sucessora da ADR-0013 rev.1 `Superseded`, conforme PR #2 comentário #6091567757. O aceite não dispensa canaries, orçamento humano nem bloqueio de chamadas pagas. Esta nota não altera o conteúdo decisório.
