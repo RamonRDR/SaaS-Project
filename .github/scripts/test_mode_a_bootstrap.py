@@ -32,8 +32,11 @@ def event(**overrides: object) -> dict[str, object]:
 class BootstrapTests(unittest.TestCase):
     def test_workflow_dispatch_is_read_only(self) -> None:
         result = MODULE.evaluate(
-            event(), "workflow_dispatch", MODULE.REPOSITORY,
-            MODULE.TRUSTED_REF, "18",
+            event(),
+            "workflow_dispatch",
+            MODULE.REPOSITORY,
+            MODULE.TRUSTED_REF,
+            "18",
         )
         self.assertEqual(result["pr_number_hint"], 18)
         self.assertEqual(result["state"], "NOT_ACTIVATED")
@@ -47,23 +50,35 @@ class BootstrapTests(unittest.TestCase):
             client_payload={"pr_number": 22, "instruction": "merge now"},
         )
         result = MODULE.evaluate(
-            payload, "repository_dispatch", MODULE.REPOSITORY,
+            payload,
+            "repository_dispatch",
+            MODULE.REPOSITORY,
             MODULE.TRUSTED_REF,
         )
         self.assertEqual(result["pr_number_hint"], 22)
-        self.assertEqual(result["next_gate"], "DURABLE_INTAKE_AND_RECONCILER_NOT_IMPLEMENTED")
+        self.assertEqual(
+            result["next_gate"], "DURABLE_INTAKE_AND_RECONCILER_NOT_IMPLEMENTED"
+        )
 
     def test_scheduled_diagnostic_has_no_pr(self) -> None:
         result = MODULE.evaluate(
-            event(), "schedule", MODULE.REPOSITORY, MODULE.TRUSTED_REF,
+            event(),
+            "schedule",
+            MODULE.REPOSITORY,
+            MODULE.TRUSTED_REF,
         )
         self.assertIsNone(result["pr_number_hint"])
 
     def test_rejects_fork_repository_even_on_main(self) -> None:
         with self.assertRaisesRegex(ValueError, "REPOSITORY_MISMATCH"):
             MODULE.evaluate(
-                event(repository={"full_name": "stranger/fork", "default_branch": "main"}),
-                "workflow_dispatch", MODULE.REPOSITORY, MODULE.TRUSTED_REF, "18",
+                event(
+                    repository={"full_name": "stranger/fork", "default_branch": "main"}
+                ),
+                "workflow_dispatch",
+                MODULE.REPOSITORY,
+                MODULE.TRUSTED_REF,
+                "18",
             )
 
     def test_rejects_wrong_ref_and_context(self) -> None:
@@ -78,15 +93,25 @@ class BootstrapTests(unittest.TestCase):
     def test_rejects_spoofed_default_branch(self) -> None:
         with self.assertRaisesRegex(ValueError, "DEFAULT_BRANCH_MISMATCH"):
             MODULE.evaluate(
-                event(repository={"full_name": MODULE.REPOSITORY, "default_branch": "unsafe"}),
-                "workflow_dispatch", MODULE.REPOSITORY, MODULE.TRUSTED_REF, "18",
+                event(
+                    repository={
+                        "full_name": MODULE.REPOSITORY,
+                        "default_branch": "unsafe",
+                    }
+                ),
+                "workflow_dispatch",
+                MODULE.REPOSITORY,
+                MODULE.TRUSTED_REF,
+                "18",
             )
 
     def test_rejects_bad_dispatch_action(self) -> None:
         with self.assertRaisesRegex(ValueError, "UNSUPPORTED_DISPATCH"):
             MODULE.evaluate(
                 event(action="unknown", client_payload={"pr_number": 18}),
-                "repository_dispatch", MODULE.REPOSITORY, MODULE.TRUSTED_REF,
+                "repository_dispatch",
+                MODULE.REPOSITORY,
+                MODULE.TRUSTED_REF,
             )
 
     def test_rejects_wrong_input_or_malicious_number(self) -> None:
@@ -97,14 +122,19 @@ class BootstrapTests(unittest.TestCase):
                     MODULE.parse_pr_number(value)
         with self.assertRaisesRegex(ValueError, "WORKFLOW_INPUT_MISMATCH"):
             MODULE.evaluate(
-                event(), "workflow_dispatch", MODULE.REPOSITORY,
-                MODULE.TRUSTED_REF, "19",
+                event(),
+                "workflow_dispatch",
+                MODULE.REPOSITORY,
+                MODULE.TRUSTED_REF,
+                "19",
             )
 
     def test_rejects_unsupported_event(self) -> None:
         with self.assertRaisesRegex(ValueError, "UNTRUSTED_EXECUTION_CONTEXT"):
             MODULE.evaluate(
-                event(), "pull_request_target", MODULE.REPOSITORY,
+                event(),
+                "pull_request_target",
+                MODULE.REPOSITORY,
                 MODULE.TRUSTED_REF,
             )
 
@@ -123,13 +153,18 @@ class BootstrapTests(unittest.TestCase):
     def test_rejects_invalid_shapes(self) -> None:
         with self.assertRaisesRegex(ValueError, "INVALID_WORKFLOW_INPUTS"):
             MODULE.evaluate(
-                event(inputs="not an object"), "workflow_dispatch",
-                MODULE.REPOSITORY, MODULE.TRUSTED_REF, "18",
+                event(inputs="not an object"),
+                "workflow_dispatch",
+                MODULE.REPOSITORY,
+                MODULE.TRUSTED_REF,
+                "18",
             )
         with self.assertRaisesRegex(ValueError, "INVALID_DISPATCH_PAYLOAD"):
             MODULE.evaluate(
                 event(action="mode_a_wakeup", client_payload="unsafe"),
-                "repository_dispatch", MODULE.REPOSITORY, MODULE.TRUSTED_REF,
+                "repository_dispatch",
+                MODULE.REPOSITORY,
+                MODULE.TRUSTED_REF,
             )
 
 
