@@ -23,6 +23,8 @@ Criar uma **issue dedicada** no repositório cuja primeira linha do corpo seja e
 Configurar em Settings > Secrets and variables > Actions > Variables:
 
 - MODE_A_INBOX_ISSUE: número da issue dedicada, diferente da issue de controle.
+
+A issue de controle referenciada por CONTROL_ISSUE precisa ter sido criada pelo responsável RamonRDR, estar aberta, não ser pull request e conter exatamente um campo por linha para ORCHESTRATOR_MODE: A, PHASE: PHASE-... e OBJECTIVE: texto não vazio. Uma issue aberta genérica, inclusive a inbox, nunca é controle válido. **A descrição atual da Issue #1 ainda exige adequação desse bloco antes do canary real; este PR não a altera nem ativa ingestão.** Durante varredura global, candidatos inválidos são ignorados sem impedir que outros PRs válidos avancem; falhas de rede/paginação continuam bloqueantes.
 - MODE_A_INTAKE_ENABLED=true: habilita gravações após aprovação operacional e canary.
 - MODE_A_INBOX_RECONCILE_ENABLED=true: habilita reconciliação de leitura.
 
