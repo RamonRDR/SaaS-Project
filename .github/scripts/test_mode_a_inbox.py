@@ -125,10 +125,12 @@ class InboxTests(unittest.TestCase):
         self.assertEqual(MODULE.reconcile(api, 99, MAIN_SHA)["missing_requests"], [])
 
     def test_invalid_open_pr_does_not_block_other_candidates(self):
-        api = FakeAPI([
-            pr(17, body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: broken"),
-            pr(18, SHA_B),
-        ])
+        api = FakeAPI(
+            [
+                pr(17, body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: broken"),
+                pr(18, SHA_B),
+            ]
+        )
         result = MODULE.ingest(api, 99, MAIN_SHA, None)
         self.assertEqual(result["new_intents_verified"], 1)
         self.assertEqual(api.posts, 1)
