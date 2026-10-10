@@ -31,6 +31,8 @@ Esta versão 1.6 responde aos findings P1/P2 do Codex no HEAD `9ca3248`: o finge
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
+> **Nota administrativa posterior à aprovação (2026-10-09):** as referências de estado nas seções materiais 1–24 refletem o momento de elaboração/revisão. Seu texto está preservado exatamente como no blob humano-aprovado `42766e86cba23a8f3045d89a8b17c741bc8d7d26`. O estado jurídico-operacional atual prevalente nos metadados é: SDD-0001 v1.6 `Approved`, ADR-0014 rev.5 `Accepted` e ADR-0013 rev.1 `Superseded` por sucessão humana registrada no PR #2 comentário #6091567757. Esta anotação NÃO altera regra/decisão material; chamadas pagas continuam bloqueadas até canaries e limites aprovados.
+
 ## 1. Contexto
 
 O Mode A interativo já possui máquina de estados, gates humanos, anti-loop, invalidação por HEAD e ciclo de PR/CI/review. O objetivo remanescente é executar esse fluxo sem depender de uma conversa ativa ou de uma máquina local.
@@ -534,7 +536,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - conta/projeto OpenAI API com billing habilitado;
 - Codex Action/CLI/SDK suportado para CI;
 - ADR-0010 vigente;
-- ADR-0013 rev.1 encontra-se `Superseded` pela ADR-0014 rev.5 `Accepted`; a SDD-0001 v1.6 está `Approved`. A arquitetura aceita governa a implementação futura, mas a ativação de API paga exige orçamento e limites humanos, comprovação do writer global e todos os canaries de segurança/concorrência.
+- ADR-0013 rev.1 permanece `Accepted` até aceite humano da ADR-0014 rev.5; SDD v1.6/ADR-0014 rev.5 são propostas em revisão e não autorizam API paga.
 
 ## 22. Riscos conhecidos
 
@@ -568,7 +570,7 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 ## 24. ADRs necessários ou relacionados
 
 - **ADR necessário:** Sim
-- **Referências:** ADR-0010, ADR-0012 rev.7 (`Superseded`), ADR-0013 rev.1 (`Superseded`, histórica), ADR-0014 rev.5 (`Accepted`, vigente: contrato trusted do CODEX-01 e identidade de causa do Remediator).
+- **Referências:** ADR-0010, ADR-0012 rev.7 (`Superseded`), ADR-0013 rev.1 (`Accepted`, vigente), ADR-0014 rev.5 (`Proposed`, contrato trusted e identity de causa Remediator)
 - **Motivo:** mover o runtime para GitHub Actions + Codex, introduzir API paga e definir fronteiras de privilégio é decisão transversal e durável.
 
 ## 25. Histórico de revisão

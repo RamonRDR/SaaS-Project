@@ -17,13 +17,15 @@
 
 Esta ADR chegou a `Accepted` por decisão humana expressa em ChatGPT, registrada no PR #2 comentário #6091567757. Nenhum agente aceitou a decisão por conta própria. A ADR-0013 rev.1 passa a `Superseded`. As seções decisórias 1 a 14 são imutáveis após o aceite.
 
+> **Nota administrativa posterior ao aceite (2026-10-09):** as expressões de proposta e estados passados nas seções decisórias 1–14 são parte do snapshot que recebeu parecer e aceite humano, preservado **byte a byte** do blob `8f97b80946e638673e21da57e76773b974ee36b1`. O estado efetivo atual nos metadados é ADR-0014 rev.5 `Accepted`, sucessora da ADR-0013 rev.1 `Superseded`, conforme PR #2 comentário #6091567757. O aceite não dispensa canaries, orçamento humano nem bloqueio de chamadas pagas. Esta nota não altera o conteúdo decisório.
+
 ## 1. Contexto
 
 O CODEX-01 do HEAD `a58a1f7` identificou P1: CODEX-01 same-repo e Remediator não possuem claim para acessar Budget Broker; e P2: rollover UTC tenta novo claim apesar de `CONSUMED` ser imutável. A versão anterior da ADR tratava claim de quota específico de fork e pressupunha `CAS` de ledger financeiro via Git ref.
 
 A evidência real em `RamonRDR/SaaS-CAS-Lab`, [run #37873320199](https://github.com/RamonRDR/SaaS-CAS-Lab/actions/runs/37873320199), [relatório](https://github.com/RamonRDR/SaaS-CAS-Lab/blob/main/docs/RESULTS_2026-10-09.md), mostrou: dois runners independentes com commits irmãos obtiveram HTTP 200/422 (um vencedor) para claim e orçamento; um writer serializado reconciliou 4/4 reservas, 2 negadas; **contraexemplo:** Git aceitou HTTP 200 para commit fast-forward baseado em estado lógico antigo, regredindo geração do ledger 5→2, com `force:false`. Depois o teste restaurou o estado e apagou a ref efêmera. Logo `PATCH /git/refs force:false` NÃO implementa CAS transacional de dados.
 
-A ADR-0013 rev.1 foi `Accepted` historicamente, mas agora está `Superseded` pela sucessora ADR-0014 rev.5; suas seções decisórias seguem imutáveis. Esta ADR-0014 rev.5 foi aceita após parecer técnico e decisão humana registrada no PR #2; seu aceite não autoriza execução paga sem canary.
+A ADR-0013 rev.1 permanece `Accepted` e suas seções decisórias são imutáveis. Esta ADR-0014 rev.5 é proposta sucessora, ainda dependente de parecer e aceite humano.
 
 
 O CODEX-01 do HEAD `a052482` identificou duas falhas P1 (writer financeiro não pode ser o único escritor de intents que precisam existir antes de acordá-lo; `workflow_dispatch` sem `ref: main` pode executar workflow da branch PR) e um P2 (claim imutável fica preso após crash estritamente pré-financeiro). Esta rev.3 especifica ingresso independente de orçamento, reentrada main-only e retomada fenced com prova negativa de efeitos. Sem alterar as decisões aceitas ADR-0012/0013.
@@ -33,14 +35,14 @@ O CODEX-01 do HEAD `a052482` identificou duas falhas P1 (writer financeiro não 
 2. **Cotação imutável da reserva:** cada reserva inclui `pricing_snapshot_digest` (versão/preço, modelo/operação, caps de input/output, requisições/retries e custos extras), máximo financeiro e período. O Budget Broker verifica exatamente esse snapshot e os limites que imporá à API antes do dispatch. Mudança posterior torna a autorização inválida e **bloqueia**, não reutiliza silenciosamente nem libera reserva duvidosa. Ajuste eventual só com prova inequívoca de não-dispatch, writer único, verificação conservadora do delta e registro idempotente, sem segunda operação paga.
 3. **Uma tentativa de CODEX-01 por HEAD:** `authorized_attempt=0` para ambos fork e same-repo. Tentativa diferente é rejeitada antes de quota/claim/budget. Apenas Remediator pode usar tentativa autorizada distinta sob anti-loop.
 
-Esses refinamentos integram a ADR-0014 rev.5 aceita; a decisão anterior da ADR-0013 rev.1 é histórica, e nenhuma chamada paga pode ocorrer antes dos canaries.
+Esses refinamentos fazem parte desta ADR ainda `Proposed`, não mudam a vigência histórica da ADR-0013 rev.1 e não autorizam código/IA paga antes de aceite humano e canary.
 
 ### Dois invariantes adicionais identificados no CODEX-01 do HEAD `9ca3248`
 
 - **Contrato confiável de review:** o mesmo changeset pode produzir decisão distinta quando workflow, prompt, schema, parser, policy, modelo ou dependências executáveis do CODEX-01 forem alterados na `main`. Calcular `trusted_review_contract_digest` de manifest canônico e **completo de dependências transitivas efetivamente carregadas**, incluindo conteúdo/versões, e incorporá-lo ao `review_context_fingerprint`. A decisão READY revalida a revisão confiável atual; evidence clean de contrato antigo é inválida. Se CODEX-01 já foi pago para aquele HEAD, requer novo HEAD antes de outra inferência, preservando uma chamada por SHA. Mudança de `main_source_commit_sha` sem alteração do digest da closure não força nova inferência.
 - **Identidade específica de causa do Remediator:** `operation_key` do Remediator inclui `root_cause_family_id` normalizado pelo trusted reducer, além de HEAD e `authorized_attempt`. Duas causas independentes podem ambas estar em attempt=0 no mesmo HEAD sem colisão. O contador anti-loop é conservado por causa/repo/PR **entre HEADs** e escala após três correções repetidas sem progresso; mensagens reformatadas ou novos commits não zeram tentativas. Classificação ambígua falha fechada e exige revisão/decisão humana.
 
-Ambos integram a rev.5 aceita, sucessora da ADR-0013 rev.1; não habilitam execução paga antes dos canaries e gates próprios.
+Ambos fazem parte da rev.5 PROPOSTA. Não substituem a ADR-0013 Accepted nem habilitam execução paga antes de parecer, aceite humano e canaries.
 
 ## 2. Drivers da decisão
 
@@ -76,13 +78,13 @@ Rejeitada sem transação distribuída comprovada; crash entre refs cria ambigui
 
 Todos os consumidores fazem ingresso via workflow trusted da `main`, com permissão mínima de comentar Issue de inbox, **antes** do wake-up. Esse ingresso NÃO altera ledger de claim/finanças e um scanner periódico recupera intents ausentes enumerando PR/HEAD atuais. Apenas o writer global trusted, efetivamente serializado, aplica trust/quota extra de fork, claim lógico e budget; revalida valores sob exclusão e relê após resposta ambígua. A reentrada é sempre `repository_dispatch` no default branch ou `workflow_dispatch` explicitamente com `ref: main`. Após crash comprovadamente anterior a toda reserva, autorização e envio, pode transferir executor do MESMO claim por epoch/fencing. Sem prova, bloquear.
 
-## 5. Decisão aceita
+## 5. Decisão proposta
 
 - **Opção:** D. Trusted intake com inbox durável; claim universal e writer financeiro global; review fingerprint de changeset + contrato trusted; Remediator por root_cause_family_id, dispatch main-only e fencing; orçamento de preço/caps imutáveis.
 - **Motivo:** mantém exclusividade financeira/segurança e resolve os achados P1/P2 adicionais sem abrir nova arquitetura: evidência de review sempre ligada ao contrato trusted vigente e tentativas do Remediator isoladas por causa raiz estável.
 - **Limite importante:** `concurrency.group` global, com `cancel-in-progress:false`, é controle operacional auxiliar de exclusão, mas **não é fila durável nem transação**. Ao habilitar execução paga, testar que TODO workflow mutador compartilha exclusivamente a mesma região crítica e que nenhuma execução paralela ou bypass existe. Se GitHub não comprovar, trocar backend antes de cobrar.
 
-Esta decisão foi aceita pelo humano em 2026-10-09 (PR #2 comentário #6091567757); os controles de gastos e os canaries continuam obrigatórios antes de ativação.
+Esta seção é PROPOSTA, não aceite humano.
 
 ## 6. Consequências
 
@@ -126,7 +128,7 @@ Não afeta schema de produto. INBOX é Issue comments machine-readable com prove
 
 ## 10. Migração, rollout e canary
 
-1. Após aprovação humana da SDD-0001 v1.6 e aceite da ADR-0014 rev.5, registrar sucessão da ADR-0013 rev.1 em metadados e histórico, preservando suas seções decisórias originais.
+1. Obter `review-sdd` para SDD-0001 v1.6 e `review-adr` para ADR-0014 rev.5, seguidos de aprovação/aceite humano explícitos. Só após aceite da sucessora ADR-0013 rev.1 pode mudar para `Superseded`, preservando seções decisórias históricas.
 2. Bootstrap em PR separado: trusted intake com issues:write mínimo, Issue inbox, scanner de PR/HEAD, dispatcher `main`-only, writer global, Budget Broker, Quota Broker fork e Trusted Publisher. Audit tokens, branches/ref dispatch e todo mutador.
 3. Canary SEM API paga: três consumidores e seis PRs, concorrência, error readback, FIFO/reconciler sem fila implicitamente durável, trusted main, UTC/fencing, fast-forward stale 5→2, alteração de preços/caps; ADICIONALMENTE: alterar workflow, prompt, schema e dependência transitiva do reviewer na main após clean e exigir invalidação de READY, sem segunda IA paga no mesmo HEAD; duas causas distintas de Remediator no mesmo HEAD/tentativa 0 geram chaves diferentes e mesma causa entre HEADs conserva 3-attempt anti-loop.
 4. Critério crítico: tentativa de fast-forward com dados obsoletos (regressão 5→2) deve falhar no guard do writer ou motivar adoção de storage CAS server-side. É insuficiente que commits irmãos resultem 200/422.
@@ -141,10 +143,10 @@ Não afeta schema de produto. INBOX é Issue comments machine-readable com prove
 
 ## 12. Relação com decisões existentes
 
-- ADR-0013 rev.1: `Superseded` por esta ADR-0014 rev.5 aceita; decisões históricas não foram reescritas.
+- ADR-0013 rev.1: `Accepted`, vigente enquanto esta ADR estiver `Proposed`. O conteúdo decisório aceito não foi editado; transição a `Superseded` só depois do aceite desta sucessora.
 - ADR-0012 rev.7: `Superseded`, decisão histórica preservada.
 - ADR-0010: mantém merge humano obrigatório, CI e gates.
-- SDD-0001 v1.6: `Approved` como especificação, permanecendo gates de implementação/canary antes de uso pago.
+- SDD-0001 v1.6: proposta correspondente em review, ainda não aprovada.
 
 ## 13. Pareceres dos especialistas impactados
 
