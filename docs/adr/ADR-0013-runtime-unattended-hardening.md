@@ -4,10 +4,10 @@
 
 - **ID:** ADR-0013
 - **Título:** Hardening do runtime unattended: Budget Broker e forks
-- **Status:** Accepted
+- **Status:** Superseded
 - **Revisão decisória:** 1
 - **Data de criação:** 2026-10-08
-- **Última atualização:** 2026-10-08
+- **Última atualização:** 2026-10-09 (somente metadata/lifecycle, sem alteração das seções decisórias)
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead
 - **Responsável humano pelo aceite:** Ramon Rodriguez
@@ -305,6 +305,7 @@ Antes de qualquer canary pago é obrigatório o Budget Broker com orçamento pos
 | --- | --- | --- | --- |
 | 2026-10-08 | Product & SDD | Proposta sucessora à ADR-0012 rev.7 para hardening de fork, merge-base, credenciais exclusivas e orçamento global com revalidação do período UTC no claim/dispatch | Revisão decisória 1 `Proposed` |
 | 2026-10-08 | Ramon Rodriguez | Aceite humano expresso em ChatGPT, registrado no PR #2 comentário #6070726649 | Revisão decisória 1 `Accepted` |
+| 2026-10-09 | Ramon Rodriguez | Sucessão após aceite humano da ADR-0014 rev.5, registrado no PR #2 comentário #6091567757; conteúdo decisório 1 a 14 preservado | rev.1 `Superseded` por ADR-0014 rev.5 |
 
 ## 16. Revisão técnica
 
@@ -323,4 +324,5 @@ Antes de qualquer canary pago é obrigatório o Budget Broker com orçamento pos
 - **Data:** 2026-10-08
 - **Revisão decisória aceita:** 1
 - **Registro do aceite atual:** PR #2, comentário #6070726649 (`ORCHESTRATOR_RECORDED_HUMAN_APPROVAL`), decisão humana expressa em ChatGPT
-- **Aceite histórico preservado:** ADR-0012 rev.7 (decisão diferente), PR #2, comentário #6043168597 (`HUMAN_APPROVAL`); não aprova esta ADR-0013 rev.1
+- **Aceite histórico preservado:** ADR-0012 rev.7 (decisão diferente), PR #2 comentário #6043168597 (`HUMAN_APPROVAL`); não aprova ADR-0013 rev.1.
+- **Estado posterior ao aceite:** `Superseded` desde 2026-10-09 por ADR-0014 rev.5, conforme aprovação humana registrada no PR #2 comentário #6091567757.

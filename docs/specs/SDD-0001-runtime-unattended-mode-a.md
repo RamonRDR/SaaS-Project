@@ -4,14 +4,14 @@
 
 - **ID:** SDD-0001
 - **Título:** Runtime unattended cloud-native do Modo A
-- **Status:** In Review
+- **Status:** Approved
 - **Versão:** 1.6
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** Ramon Rodriguez
 - **Data de criação:** 2026-10-06
 - **Última atualização:** 2026-10-09
 - **Entrega / issue / PR relacionada:** Issue #1
-- **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (`Superseded`, histórico), ADR-0013 rev.1 (`Accepted`, vigente), ADR-0014 rev.5 (`Proposed`, sucessora)
+- **ADRs relacionados:** ADR-0010, ADR-0012 rev.7 (`Superseded`, histórico), ADR-0013 rev.1 (`Superseded`, histórica), ADR-0014 rev.5 (`Accepted`, vigente)
 - **SDDs relacionadas:** Não aplicável
 
 ### Estados permitidos
@@ -27,7 +27,7 @@ Uma SDD não pode assumir `Approved` por decisão de um agente de IA.
 
 As seções 1 a 24 compõem o conteúdo material da especificação.
 
-Esta versão 1.6 responde aos findings P1/P2 do Codex no HEAD `9ca3248`: o fingerprint do CODEX-01 precisa refletir não só changeset, mas a revisão imutável e COMPLETA do contrato trusted de review (workflow/prompt/schema/modelo/políticas/parser e dependências do caminho de execução); o Remediator precisa de `root_cause_family_id` confiável em sua `operation_key` para separar causas independentes e contar tentativas anti-loop por causa mesmo entre HEADs. A restrição de um CODEX-01 pago por HEAD e snapshot imutável de preço/caps permanecem. Mudança do contrato trusted invalida clean antigo; se já houve review pago no HEAD, nova inferência exige novo HEAD. ADR-0013 rev.1 Accepted permanece vigente; SDD v1.6/ADR-0014 rev.5 são propostas sem efeito operacional antes de pareceres e aprovação/aceite humano.
+Esta versão 1.6 responde aos findings P1/P2 do Codex no HEAD `9ca3248`: o fingerprint do CODEX-01 precisa refletir não só changeset, mas a revisão imutável e COMPLETA do contrato trusted de review (workflow/prompt/schema/modelo/políticas/parser e dependências do caminho de execução); o Remediator precisa de `root_cause_family_id` confiável em sua `operation_key` para separar causas independentes e contar tentativas anti-loop por causa mesmo entre HEADs. A restrição de um CODEX-01 pago por HEAD e snapshot imutável de preço/caps permanecem. Mudança do contrato trusted invalida clean antigo; se já houve review pago no HEAD, nova inferência exige novo HEAD. ADR-0013 rev.1 era a decisão histórica vigente antes da sucessão. SDD v1.6 e ADR-0014 rev.5 foram aprovadas/aceitas explicitamente pelo responsável humano; ainda não há execução paga autorizada sem implementação e canaries seguros.
 
 Qualquer mudança material nas seções 1 a 24 invalida este parecer técnico, incrementa a versão e exige novo ciclo de revisão e aprovação.
 
@@ -596,19 +596,19 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 
 ### Revisão
 
-- **Parecer de `review-sdd`:** Pendente, a SDD v1.6 deve ser revisada no HEAD final
-- **Versão revisada:** Não aplicável até review-sdd v1.6
+- **Parecer de `review-sdd`:** Pronta para aprovação (parecer técnico favorável anterior à decisão humana)
+- **Versão revisada:** 1.6; blob `42766e86cba23a8f3045d89a8b17c741bc8d7d26`, HEAD avaliado `7613e8550bc1f973fc758a5446a120370a733a80`
 - **Revisor:** Orchestrator / Tech Lead
 - **Data:** 2026-10-09
 - **Evidência anterior:** SDD v1.1 aprovada, Codex no HEAD `a58a1f7` identificou P1 same-repo e P2 UTC; CAS-Lab demonstrou o limite de `force:false` no run #37873320199.
-- **Pendências bloqueantes:** revisar closure do contrato trusted/READY e root_cause_family_id/anti-loop entre HEADs, executar Codex, depois gate humano.
+- **Pendências bloqueantes:** Nenhuma para aprovação documental de v1.6; requisitos de implementação e canary permanecem obrigatórios.
 - **Pendências não bloqueantes:** implementação, configuração de orçamento/preços e canary E2E antes de uso pago.
 
 ### Gate humano
 
-- **Aprovada:** Não para a versão atual
-- **Versão aprovada:** Não aplicável à v1.6
+- **Aprovada:** Sim
+- **Versão aprovada:** 1.6
 - **Responsável humano:** Ramon Rodriguez
-- **Data:** Pendente para v1.6
-- **Registro da aprovação atual:** Pendente. Aprovação SDD v1.1 (#6070726649) não cobre v1.6.
-- **Aprovação histórica preservada:** SDD v0.8/ADR-0012 rev.7 (#6043168597), SDD v1.1/ADR-0013 rev.1 (#6070726649); não aprovam v1.6/rev.5.
+- **Data:** 2026-10-09
+- **Registro da aprovação atual:** PR #2 comentário #6091567757 (`ORCHESTRATOR_RECORDED_HUMAN_APPROVAL`), decisão humana expressa no ChatGPT para SDD v1.6, HEAD material `7613e8550bc1f973fc758a5446a120370a733a80`.
+- **Aprovação histórica preservada:** SDD v0.8/ADR-0012 rev.7 (#6043168597), SDD v1.1/ADR-0013 rev.1 (#6070726649); limitadas às próprias versões.
