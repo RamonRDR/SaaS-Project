@@ -1,0 +1,64 @@
+name: Mode A Bootstrap
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/mode-a-bootstrap.yml
+      - .github/scripts/mode_a_bootstrap.py
+      - .github/scripts/test_mode_a_bootstrap.py
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/mode-a-bootstrap.yml
+      - .github/scripts/mode_a_bootstrap.py
+      - .github/scripts/test_mode_a_bootstrap.py
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Número de PR para diagnóstico (não autoriza ação)"
+        required: false
+        type: string
+  repository_dispatch:
+    types:
+      - mode_a_wakeup
+  schedule:
+    - cron: "17 */6 * * *"
+
+# Bootstrap não tem acesso a secrets ou permissões de escrita.
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-tests:
+    name: bootstrap-tests
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sem persistência de token
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          persist-credentials: false
+      - name: Compilar Python
+        run: python3 -m compileall -q .github/scripts/mode_a_bootstrap.py .github/scripts/test_mode_a_bootstrap.py
+      - name: TEST-01 - Testar bootstrap seguro
+        run: python3 -m unittest discover -s .github/scripts -p 'test_mode_a_bootstrap.py' -v
+
+  bootstrap-diagnostic:
+    name: bootstrap-diagnostic
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout confiável da main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Emitir diagnóstico sem mutação
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }
+          GITHUB_EVENT_NAME: ${{ github.event_name }
+          GITHUB_REPOSITORY: ${{ github.repository }
+          GITHUB_REF: ${{ github.ref }
+          INPUT_PR_NUMBER: ${{ inputs.pr_number || '' }
+        run: python3 .github/scripts/mode_a_bootstrap.py
