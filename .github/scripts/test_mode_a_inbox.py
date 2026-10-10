@@ -135,7 +135,9 @@ class InboxTests(unittest.TestCase):
         forged = comment(item)
         forged["body"] += "\nchanged"
         api.comments.append(forged)
-        with self.assertRaisesRegex(MODULE.ClosedGate, "INVALID_INBOX_JSON|MODIFIED_INBOX_RECORD"):
+        with self.assertRaisesRegex(
+            MODULE.ClosedGate, "INVALID_INBOX_JSON|MODIFIED_INBOX_RECORD"
+        ):
             MODULE.reconcile(api, 99, MAIN_SHA)
 
     def test_wrong_operation_key_blocks(self):
