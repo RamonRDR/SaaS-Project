@@ -99,3 +99,16 @@ Não editar o passado para fazer uma decisão antiga parecer compatível com a n
 ## Idioma
 
 Conteúdo em português do Brasil. Identificadores técnicos e exemplos de código permanecem em inglês conforme `docs/LANGUAGE_POLICY.md`.
+
+
+## IDs históricos não importados
+
+- **ADR-0011:** ID consumido por experimento privado de runtime unattended posteriormente descartado. O documento original não foi importado para o snapshot público e o ID não pode ser reutilizado.
+
+## Decisões do runtime unattended
+
+| ADR | Decisão | Revisão decisória | Parecer técnico atual | Status | Aceite humano |
+| --- | --- | ---: | --- | --- | --- |
+| [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended, decisão histórica substituída pela ADR-0013 | 7 | Pronto para aceite humano | `Superseded` | Registrado |
+| [ADR-0013](./ADR-0013-runtime-unattended-hardening.md) | Runtime unattended: budget global, merge-base e hardening de fork, histórica substituída pela ADR-0014 | 1 | Pronto para aceite humano | `Superseded` | Registrado |
+| [ADR-0014](./ADR-0014-claim-before-budget.md) | Claim universal, writer global, contrato trusted de review e causa raiz do Remediator | 5 | Pronto para aceite humano | `Accepted` | Registrado #6091567757 |
