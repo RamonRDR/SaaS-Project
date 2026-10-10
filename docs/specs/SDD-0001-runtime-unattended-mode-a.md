@@ -534,7 +534,7 @@ Custos de API devem ser acompanháveis pelo projeto OpenAI usado na automação.
 - conta/projeto OpenAI API com billing habilitado;
 - Codex Action/CLI/SDK suportado para CI;
 - ADR-0010 vigente;
-- ADR-0013 rev.1 permanece `Accepted` até aceite humano da ADR-0014 rev.5; SDD v1.6/ADR-0014 rev.5 são propostas em revisão e não autorizam API paga.
+- ADR-0013 rev.1 encontra-se `Superseded` pela ADR-0014 rev.5 `Accepted`; a SDD-0001 v1.6 está `Approved`. A arquitetura aceita governa a implementação futura, mas a ativação de API paga exige orçamento e limites humanos, comprovação do writer global e todos os canaries de segurança/concorrência.
 
 ## 22. Riscos conhecidos
 
@@ -568,7 +568,7 @@ Esses itens não podem reduzir os controles descritos nesta SDD.
 ## 24. ADRs necessários ou relacionados
 
 - **ADR necessário:** Sim
-- **Referências:** ADR-0010, ADR-0012 rev.7 (`Superseded`), ADR-0013 rev.1 (`Accepted`, vigente), ADR-0014 rev.5 (`Proposed`, contrato trusted e identity de causa Remediator)
+- **Referências:** ADR-0010, ADR-0012 rev.7 (`Superseded`), ADR-0013 rev.1 (`Superseded`, histórica), ADR-0014 rev.5 (`Accepted`, vigente: contrato trusted do CODEX-01 e identidade de causa do Remediator).
 - **Motivo:** mover o runtime para GitHub Actions + Codex, introduzir API paga e definir fronteiras de privilégio é decisão transversal e durável.
 
 ## 25. Histórico de revisão

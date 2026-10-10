@@ -23,7 +23,7 @@ O CODEX-01 do HEAD `a58a1f7` identificou P1: CODEX-01 same-repo e Remediator nã
 
 A evidência real em `RamonRDR/SaaS-CAS-Lab`, [run #37873320199](https://github.com/RamonRDR/SaaS-CAS-Lab/actions/runs/37873320199), [relatório](https://github.com/RamonRDR/SaaS-CAS-Lab/blob/main/docs/RESULTS_2026-10-09.md), mostrou: dois runners independentes com commits irmãos obtiveram HTTP 200/422 (um vencedor) para claim e orçamento; um writer serializado reconciliou 4/4 reservas, 2 negadas; **contraexemplo:** Git aceitou HTTP 200 para commit fast-forward baseado em estado lógico antigo, regredindo geração do ledger 5→2, com `force:false`. Depois o teste restaurou o estado e apagou a ref efêmera. Logo `PATCH /git/refs force:false` NÃO implementa CAS transacional de dados.
 
-A ADR-0013 rev.1 permanece `Accepted` e suas seções decisórias são imutáveis. Esta ADR-0014 rev.5 foi aceita como sucessora após parecer técnico e decisão humana registrada no PR #2; seu aceite não autoriza execução paga sem canary.
+A ADR-0013 rev.1 foi `Accepted` historicamente, mas agora está `Superseded` pela sucessora ADR-0014 rev.5; suas seções decisórias seguem imutáveis. Esta ADR-0014 rev.5 foi aceita após parecer técnico e decisão humana registrada no PR #2; seu aceite não autoriza execução paga sem canary.
 
 
 O CODEX-01 do HEAD `a052482` identificou duas falhas P1 (writer financeiro não pode ser o único escritor de intents que precisam existir antes de acordá-lo; `workflow_dispatch` sem `ref: main` pode executar workflow da branch PR) e um P2 (claim imutável fica preso após crash estritamente pré-financeiro). Esta rev.3 especifica ingresso independente de orçamento, reentrada main-only e retomada fenced com prova negativa de efeitos. Sem alterar as decisões aceitas ADR-0012/0013.
@@ -185,5 +185,5 @@ Não afeta schema de produto. INBOX é Issue comments machine-readable com prove
 - **Aceito:** Sim
 - **Responsável humano:** Ramon Rodriguez
 - **Revisão aceita:** 5
-- **Data:** Pendente
+- **Data:** 2026-10-09
 - **Registro:** Aceite humano explícito em ChatGPT, PR #2 comentário #6091567757 (`ORCHESTRATOR_RECORDED_HUMAN_APPROVAL`), HEAD material original `7613e8550bc1f973fc758a5446a120370a733a80`; ADR-0013 rev.1 passa a `Superseded`.
