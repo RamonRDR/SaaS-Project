@@ -67,6 +67,8 @@ class FakeAPI:
             return self.comments[-1]
         if method == "GET" and endpoint == "/issues/99":
             return {"state": "open", "body": "MODE_A_INBOX_V1\nsomente intents"}
+        if method == "GET" and endpoint == "/issues/2":
+            return {"state": "open", "body": "Outro controle"}
         if method == "GET" and endpoint == "/issues/1":
             return {
                 "state": "open" if self.control_open else "closed",
@@ -163,6 +165,18 @@ class InboxTests(unittest.TestCase):
         report = MODULE.reconcile(api, 99, MAIN_SHA)
         self.assertEqual(len(report["missing_requests"]), 1)
         self.assertEqual(report["stale_records"], 1)
+
+    def test_changed_control_on_same_head_blocks_reuse(self):
+        api = FakeAPI()
+        MODULE.ingest(api, 99, MAIN_SHA, 17)
+        api.prs[17] = pr(
+            body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 2\n"
+        )
+        with self.assertRaisesRegex(MODULE.ClosedGate, "REQUEST_CONTEXT_CHANGED"):
+            MODULE.reconcile(api, 99, MAIN_SHA)
+        with self.assertRaisesRegex(MODULE.ClosedGate, "REQUEST_CONTEXT_CHANGED"):
+            MODULE.ingest(api, 99, MAIN_SHA, 17)
+        self.assertEqual(api.posts, 1)
 
     def test_duplicate_records_are_not_financial_claims(self):
         api = FakeAPI()
