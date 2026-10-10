@@ -113,20 +113,31 @@ def main() -> int:
     except ValueError as exc:
         # Somente códigos conhecidos, nunca imprime payload, token ou exceção bruta.
         allowed = {
-            "INVALID_PR_NUMBER", "INVALID_EVENT_FILE", "INVALID_EVENT_JSON",
-            "INVALID_EVENT_FORMAT", "UNTRUSTED_EXECUTION_CONTEXT",
-            "REPOSITORY_MISMATCH", "DEFAULT_BRANCH_MISMATCH",
-            "UNSUPPORTED_DISPATCH", "INVALID_DISPATCH_PAYLOAD",
-            "INVALID_WORKFLOW_INPUTS", "WORKFLOW_INPUT_MISMATCH",
+            "INVALID_PR_NUMBER",
+            "INVALID_EVENT_FILE",
+            "INVALID_EVENT_JSON",
+            "INVALID_EVENT_FORMAT",
+            "UNTRUSTED_EXECUTION_CONTEXT",
+            "REPOSITORY_MISMATCH",
+            "DEFAULT_BRANCH_MISMATCH",
+            "UNSUPPORTED_DISPATCH",
+            "INVALID_DISPATCH_PAYLOAD",
+            "INVALID_WORKFLOW_INPUTS",
+            "WORKFLOW_INPUT_MISMATCH",
             "MISSING_EVENT_PATH",
         }
         reason = str(exc)
-        print(json.dumps({
-            "diagnostic": "MODE_A_BOOTSTRAP_REJECTED",
-            "reason": reason if reason in allowed else "INVALID_INPUT",
-            "writes_enabled": False,
-            "paid_inference_enabled": False,
-        }, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "diagnostic": "MODE_A_BOOTSTRAP_REJECTED",
+                    "reason": reason if reason in allowed else "INVALID_INPUT",
+                    "writes_enabled": False,
+                    "paid_inference_enabled": False,
+                },
+                sort_keys=True,
+            )
+        )
         return 2
 
     print(json.dumps(result, sort_keys=True))
