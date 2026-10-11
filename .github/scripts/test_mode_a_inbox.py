@@ -336,9 +336,7 @@ class InboxTests(unittest.TestCase):
             ]
 
         api.request = fake_request
-        with self.assertRaisesRegex(
-            MODULE.ClosedGate, "INBOX_CAPACITY_SAFETY_GATE"
-        ):
+        with self.assertRaisesRegex(MODULE.ClosedGate, "INBOX_CAPACITY_SAFETY_GATE"):
             api.pages("/issues/99/comments")
         self.assertEqual(MODULE.PAGE_SIZE, 100)
         self.assertLessEqual(len(pages_seen), 51)
