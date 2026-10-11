@@ -401,7 +401,13 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
             # evita reler toda a inbox para cada novo registro.
             if not isinstance(acknowledgment, dict):
                 raise ClosedGate("INVALID_INBOX_ACK")
-            comment_id = positive_number(acknowledgment.get("id"))
+            comment_id = acknowledgment.get("id")
+            if (
+                type(comment_id) is not int
+                or comment_id < 1
+                or comment_id > 9_223_372_036_854_775_807
+            ):
+                raise ClosedGate("INVALID_COMMENT_ID")
             received = api.request("GET", f"/issues/comments/{comment_id}")
             if not isinstance(received, dict) or received.get("id") != comment_id:
                 raise ClosedGate("INBOX_READBACK_UNCERTAIN")
