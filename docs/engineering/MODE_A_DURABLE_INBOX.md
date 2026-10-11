@@ -20,6 +20,18 @@ Criar uma **issue dedicada** no repositório cuja primeira linha do corpo seja e
 
     MODE_A_INBOX_V1
 
+**Travar a conversa da issue (Lock conversation) antes de qualquer ativação.**
+O intake e o reconciler verificam `locked=true` e falham fechados se a
+inbox estiver aberta ao público. O GitHub permite que colaboradores com
+escrita e proprietários comentem em conversas travadas; a issue é um canal
+de controle, não um fórum. O lock NÃO substitui `request_id`, validação
+de autor bot ou auditoria; todos continuam obrigatórios.
+
+No canary, a issue deve nascer sem comentários de terceiros e ser travada
+antes da primeira gravação. Se o lock for revogado durante uma varredura,
+o intake para de gravar na próxima revalidação pré-POST. O processo não
+destrava, tranca nem altera issues automaticamente.
+
 Configurar em Settings > Secrets and variables > Actions > Variables:
 
 - MODE_A_INBOX_ISSUE: número da issue dedicada, diferente da issue de controle.
@@ -36,14 +48,15 @@ Os comentários possuem prefixo MODE_A_INBOX_V1 seguido de JSON canônico: schem
 
 request_id é SHA-256 de operation_key baseada em repo/PR/HEAD/operação/tentativa, independente do workflow_run_id e da revisão da main. O leitor verifica o autor GitHub Actions Bot, os campos esperados, a canonicalização e a identidade reconstruída. Comentários de terceiros não concedem autoridade.
 
-O intake valida PR/HEAD **e revalida a issue de controle imediatamente antes de cada gravação**. Após POST bem-sucedido, faz readback autoritativo pelo ID do comentário retornado pela API (incluindo IDs de 64 bits), evitando reler a inbox inteira para cada novo registro. Se o ACK do POST for ambíguo, procura evidência na inbox integral antes de declarar sucesso; sem prova, falha fechado. Duplicatas físicas ocasionais são toleradas como intenções, nunca como autorização de orçamento; um ledger futuro deve implementar unicidade financeira em writer global próprio.
+O intake valida PR/HEAD **e revalida tanto a issue de controle quanto a própria inbox (estado, marcador e lock) imediatamente antes de cada gravação**. Após POST bem-sucedido, faz readback autoritativo pelo ID do comentário retornado pela API (incluindo IDs de 64 bits), evitando reler a inbox inteira para cada novo registro. Se o ACK do POST for ambíguo, procura evidência na inbox integral antes de declarar sucesso; sem prova, falha fechado. Duplicatas físicas ocasionais são toleradas como intenções, nunca como autorização de orçamento; um ledger futuro deve implementar unicidade financeira em writer global próprio.
 
 ## Recuperação e limites
 
 - Um scanner horário de PRs abertos reconstitui ingressos perdidos no próximo ciclo de intake ativo.
 - A listagem pagina até a primeira resposta curta, inclusive quando há múltiplos exatos de página. Cada página contém até **100 itens**, reduzindo requisições. Um teto **conservador de 5.000 itens por listagem** exige no máximo 51 leituras paginadas, abaixo da cota típica de 1.000 requisições/hora por repositório do GitHub Actions, reservando capacidade para outras operações. Exceder este teto gera `INBOX_CAPACITY_SAFETY_GATE`; **não se declara a inbox permanentemente escalável nem se permite truncar registros**.
 - **Canary/ativação:** a rotação/arquivamento de inbox e seu contrato de proveniência devem ser implementados, revisados e testados em incremento próprio *antes* que o volume histórico se aproxime dos 5.000 registros. Enquanto essa prova não existir, a entrega atual é um bootstrap deliberadamente desabilitado; atingir o teto bloqueia de maneira segura, não apaga nem ignora intents.
-- Cada resposta da API é lida integralmente, com máximo de 8 MiB por resposta e detecção explícita de corpo grande ou JSON inválido; nunca se interpreta JSON truncado como resposta íntegra. Páginas de 100 itens reduzem consumo de cota; respostas acima do teto de bytes bloqueiam, não são interpretadas parcialmente.
+- Cada resposta da API é lida integralmente com limite de **48 MiB** por resposta, jamais interpretando JSON truncado. Uma página de 100 comentários com 65.536 caracteres Unicode por item, escapados em JSON, foi simulada e validada nos testes. A inbox travada impede inserção de comentários gigantes por contribuidores públicos; o teto de bytes permanece defesa de recursos e resultados excepcionalmente maiores falham fechados. O limite não é promessa para payloads arbitrariamente grandes de colaboradores privilegiados, que pertencem à fronteira de confiança da issue.
+- O limite de 5.000 registros é deliberado para **canary de baixo volume**. Rotação/arquivamento verificável continua pré-requisito antes de ampliar esse alcance; não afirmar que o código escala indefinidamente.
 - A proveniência `main_source_sha` é obtida de `git rev-parse HEAD` após checkout confiável da main. O SHA do evento pode estar antigo e não é usado como origem do código executado. Os registros são vinculados ao commit realmente carregado.
 - O reconciler read-only compara a inbox com os PRs vigentes. HEAD novo torna registro antigo stale. Não exclui histórico e não altera ledger.
 - Paginação incompleta, controle inválido ou comment bot alterado resulta em bloqueio conservador.
