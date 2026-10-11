@@ -343,8 +343,7 @@ class InboxTests(unittest.TestCase):
         # com expansão de Unicode em JSON além do limite antigo de 8 MiB.
         api = MODULE.GitHubAPI("test-token-not-real")
         comments = [
-            {"id": idx, "user": {"login": "github-actions[bot]"},
-             "body": "☀" * 65_536}
+            {"id": idx, "user": {"login": "github-actions[bot]"}, "body": "☀" * 65_536}
             for idx in range(MODULE.PAGE_SIZE)
         ]
         raw = json.dumps(comments, ensure_ascii=True).encode("utf-8")
