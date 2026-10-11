@@ -18,12 +18,11 @@ REPOSITORY = "RamonRDR/SaaS-Project"
 INBOX_MARKER = "MODE_A_INBOX_V1"
 COMMENT_PREFIX = "MODE_A_INBOX_V1\n"
 BOT_LOGIN = "github-actions[bot]"
-# 100 itens/página: até 51 chamadas para o piloto de 5.000 registros.
-# A inbox exige lock para evitar que usuários externos encham respostas.
-# 48 MiB suportam uma página com 100 comentários na faixa de 65.536
-# caracteres e sua expansão em JSON Unicode sem truncar a resposta.
+# Até 101 páginas para piloto de 5.000 registros; a inbox exige lock.
+# 50 comentários de 65.536 emojis (escape em pares substitutos JSON)
+# totalizam ~39 MiB, abaixo do limite de 48 MiB por resposta.
 MAX_LIST_ITEMS = 5_000
-PAGE_SIZE = 100
+PAGE_SIZE = 50
 MAX_RESPONSE_BYTES = 48 * 1024 * 1024
 MAX_BODY_BYTES = 16384
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
@@ -50,6 +49,8 @@ def parse_control(body: object) -> int | None:
     """Requer exatamente um Mode A e um CONTROL_ISSUE, sem inferir texto."""
     if not isinstance(body, str) or len(body.encode("utf-8")) > MAX_BODY_BYTES:
         raise ClosedGate("INVALID_PR_BODY")
+    # O campo de descrição do GitHub pode preservar CRLF do Windows.
+    body = body.replace("\r\n", "\n")
     modes = re.findall(r"^ORCHESTRATOR_MODE: ([A-Z]+)$", body, re.MULTILINE)
     issues = re.findall(r"^CONTROL_ISSUE: ([^\r\n]+)$", body, re.MULTILINE)
     if not modes and not issues:
