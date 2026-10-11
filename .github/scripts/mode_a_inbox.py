@@ -18,11 +18,13 @@ REPOSITORY = "RamonRDR/SaaS-Project"
 INBOX_MARKER = "MODE_A_INBOX_V1"
 COMMENT_PREFIX = "MODE_A_INBOX_V1\n"
 BOT_LOGIN = "github-actions[bot]"
-# 100 itens/página reduz chamadas; 5.000 itens/página completa <= 51 GETs.
-# Não habilitar a fase operacional sem política de rotação antes deste teto.
+# 100 itens/página: até 51 chamadas para o piloto de 5.000 registros.
+# A inbox exige lock para evitar que usuários externos encham respostas.
+# 48 MiB suportam uma página com 100 comentários na faixa de 65.536
+# caracteres e sua expansão em JSON Unicode sem truncar a resposta.
 MAX_LIST_ITEMS = 5_000
 PAGE_SIZE = 100
-MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+MAX_RESPONSE_BYTES = 48 * 1024 * 1024
 MAX_BODY_BYTES = 16384
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 INT_PATTERN = re.compile(r"[1-9][0-9]{0,8}\Z")
@@ -243,6 +245,7 @@ def validate_inbox(api: GitHubAPI, inbox_number: int) -> None:
     if (
         not isinstance(issue, dict)
         or issue.get("state") != "open"
+        or issue.get("locked") is not True
         or not isinstance(issue.get("body"), str)
         or issue["body"].splitlines()[0:1] != [INBOX_MARKER]
         or "pull_request" in issue
@@ -383,6 +386,9 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
         if make_intent(fresh, main_sha) != intent:
             raise ClosedGate("STALE_PR_BEFORE_WRITE")
         validate_control_issue(api, intent["control_issue"], inbox)
+        # O marcador, estado ou lock da inbox pode ser revogado durante
+        # um lote. A última decisão de escrita exige a guarda vigente.
+        validate_inbox(api, inbox)
         body = serialize_intent(intent)
         try:
             acknowledgment = api.request(
