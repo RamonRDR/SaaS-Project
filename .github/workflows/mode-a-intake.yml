@@ -33,12 +33,18 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - name: Identificar commit realmente executado
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse --verify HEAD)"
+          [[ "$sha" =~ ^[a-f0-9]{40}$ ]]
+          printf 'MODE_A_SOURCE_SHA=%s\n' "$sha" >> "$GITHUB_ENV"
       - name: Guard de contexto e persistência PENDING
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_REF: ${{ github.ref }}
-          GITHUB_SHA: ${{ github.sha }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           MODE_A_INBOX_ISSUE: ${{ vars.MODE_A_INBOX_ISSUE }}
           MODE_A_INTAKE_ENABLED: ${{ vars.MODE_A_INTAKE_ENABLED }}
