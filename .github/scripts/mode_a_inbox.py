@@ -18,8 +18,9 @@ REPOSITORY = "RamonRDR/SaaS-Project"
 INBOX_MARKER = "MODE_A_INBOX_V1"
 COMMENT_PREFIX = "MODE_A_INBOX_V1\n"
 BOT_LOGIN = "github-actions[bot]"
-MAX_PAGES = 20
-PAGE_SIZE = 100
+MAX_LIST_ITEMS = 200_000
+PAGE_SIZE = 10
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 MAX_BODY_BYTES = 16384
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 INT_PATTERN = re.compile(r"[1-9][0-9]{0,8}\Z")
@@ -197,7 +198,15 @@ class GitHubAPI:
         )
         try:
             with urllib.request.urlopen(request, timeout=15) as response:
-                return json.loads(response.read(2_000_000))
+                # Ler um JSON COMPLETO ou falhar fechado. Nunca parsear prefixo truncado.
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
+                if len(raw) > MAX_RESPONSE_BYTES:
+                    raise ClosedGate("API_RESPONSE_TOO_LARGE")
+                try:
+                    parsed = json.loads(raw)
+                except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    raise ClosedGate("INVALID_API_RESPONSE") from exc
+                return parsed
         except urllib.error.HTTPError as exc:
             if exc.code == 404 and method == "GET" and endpoint.startswith("/issues/"):
                 raise ClosedGate("ISSUE_NOT_FOUND") from exc
@@ -207,18 +216,24 @@ class GitHubAPI:
             raise ClosedGate("GITHUB_API_UNCERTAIN") from exc
 
     def pages(self, path: str) -> list[dict[str, Any]]:
+        """Página até resposta curta, inclusive após múltiplo exato de PAGE_SIZE."""
         items: list[dict[str, Any]] = []
-        for page in range(1, MAX_PAGES + 1):
+        page = 1
+        while True:
             separator = "&" if "?" in path else "?"
             batch = self.request(
                 "GET", f"{path}{separator}per_page={PAGE_SIZE}&page={page}"
             )
             if not isinstance(batch, list) or len(batch) > PAGE_SIZE:
                 raise ClosedGate("INVALID_API_PAGE")
+            if any(not isinstance(item, dict) for item in batch):
+                raise ClosedGate("INVALID_API_ITEM")
+            if len(items) + len(batch) > MAX_LIST_ITEMS:
+                raise ClosedGate("INBOX_CAPACITY_SAFETY_GATE")
             items.extend(batch)
             if len(batch) < PAGE_SIZE:
                 return items
-        raise ClosedGate("PAGINATION_LIMIT")
+            page += 1
 
 
 def validate_inbox(api: GitHubAPI, inbox_number: int) -> None:
@@ -397,7 +412,7 @@ def main() -> int:
         if (
             os.getenv("GITHUB_REPOSITORY") != REPOSITORY
             or os.getenv("GITHUB_REF") != "refs/heads/main"
-            or not SHA_PATTERN.fullmatch(os.getenv("GITHUB_SHA", ""))
+            or not SHA_PATTERN.fullmatch(os.getenv("MODE_A_SOURCE_SHA", ""))
         ):
             raise ClosedGate("UNTRUSTED_RUN_CONTEXT")
         if args.mode == "intake":
@@ -427,9 +442,9 @@ def main() -> int:
                     raise ClosedGate("EVENT_TOO_LARGE")
                 event = json.loads(payload)
                 only = positive_number(event["pull_request"]["number"])
-            result = ingest(api, inbox, os.environ["GITHUB_SHA"], only)
+            result = ingest(api, inbox, os.environ["MODE_A_SOURCE_SHA"], only)
         else:
-            result = reconcile(api, inbox, os.environ["GITHUB_SHA"])
+            result = reconcile(api, inbox, os.environ["MODE_A_SOURCE_SHA"])
         print(canonical(result))
         return 0
     except (ClosedGate, KeyError, OSError, TypeError, ValueError) as exc:
