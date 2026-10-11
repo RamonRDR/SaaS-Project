@@ -36,7 +36,7 @@ Os comentários possuem prefixo MODE_A_INBOX_V1 seguido de JSON canônico: schem
 
 request_id é SHA-256 de operation_key baseada em repo/PR/HEAD/operação/tentativa, independente do workflow_run_id e da revisão da main. O leitor verifica o autor GitHub Actions Bot, os campos esperados, a canonicalização e a identidade reconstruída. Comentários de terceiros não concedem autoridade.
 
-O intake tenta persistir somente depois de consultar PR/HEAD e issue de controle atuais e sempre exige readback. Em ACK incerto, busca evidência na inbox antes de declarar sucesso. Duplicatas físicas ocasionais são toleradas como intenções, nunca como autorização de orçamento; um ledger futuro deve implementar unicidade financeira em writer global próprio.
+O intake valida PR/HEAD **e revalida a issue de controle imediatamente antes de cada gravação**. Após POST bem-sucedido, faz readback autoritativo pelo ID do comentário retornado pela API (incluindo IDs de 64 bits), evitando reler a inbox inteira para cada novo registro. Se o ACK do POST for ambíguo, procura evidência na inbox integral antes de declarar sucesso; sem prova, falha fechado. Duplicatas físicas ocasionais são toleradas como intenções, nunca como autorização de orçamento; um ledger futuro deve implementar unicidade financeira em writer global próprio.
 
 ## Recuperação e limites
 
