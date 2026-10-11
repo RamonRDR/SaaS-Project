@@ -66,11 +66,13 @@ class FakeAPI:
         if method == "POST" and endpoint == "/issues/99/comments":
             assert data and "body" in data
             self.posts += 1
-            self.comments.append({
-                "id": 1000 + self.posts,
-                "body": data["body"],
-                "user": BOT,
-            })
+            self.comments.append(
+                {
+                    "id": 1000 + self.posts,
+                    "body": data["body"],
+                    "user": BOT,
+                }
+            )
             if self.write_then_timeout:
                 self.write_then_timeout = False
                 raise MODULE.ClosedGate("GITHUB_API_UNCERTAIN")
