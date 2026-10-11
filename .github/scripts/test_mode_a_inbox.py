@@ -68,7 +68,7 @@ class FakeAPI:
             self.posts += 1
             self.comments.append(
                 {
-                    "id": 1000 + self.posts,
+                    "id": 6_100_000_000 + self.posts,
                     "body": data["body"],
                     "user": BOT,
                 }
