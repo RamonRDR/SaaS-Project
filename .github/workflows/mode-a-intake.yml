@@ -18,8 +18,10 @@ permissions:
   issues: write
   pull-requests: read
 
+# Eventos do mesmo PR podem ser coalescidos, mas nunca substituem
+# o slot pendente de recuperação periódica de TODOS os PRs.
 concurrency:
-  group: mode-a-intake-trusted
+  group: mode-a-intake-${{ github.event_name }}-${{ github.event.pull_request.number || 'recovery' }}
   cancel-in-progress: false
 
 jobs:
