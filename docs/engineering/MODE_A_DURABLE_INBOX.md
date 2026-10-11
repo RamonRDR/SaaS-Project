@@ -41,6 +41,9 @@ O intake tenta persistir somente depois de consultar PR/HEAD e issue de controle
 ## Recuperação e limites
 
 - Um scanner horário de PRs abertos reconstitui ingressos perdidos no próximo ciclo de intake ativo.
+- A listagem usa páginas pequenas (10 itens) e percorre todas as páginas até a primeira página curta, incluindo o caso de múltiplo exato. Não existe mais o corte em 20 páginas/2.000 registros. Há guarda de recursos de 200.000 itens por listagem: ao excedê-la, o processo bloqueia explicitamente, exigindo planejamento de arquivo/rotação antes de qualquer retomada. Isso não constitui arquivamento automático.
+- Cada resposta da API é lida integralmente, com máximo de 8 MiB por resposta e detecção explícita de corpo grande ou JSON inválido; nunca se interpreta JSON truncado como resposta íntegra. Páginas de 10 itens limitam a pressão de memória e permitem isolar PRs malformados. Respostas individuais acima desse teto são bloqueadas, não ignoradas.
+- A proveniência `main_source_sha` é obtida de `git rev-parse HEAD` após checkout confiável da main. O SHA do evento pode estar antigo e não é usado como origem do código executado. Os registros são vinculados ao commit realmente carregado.
 - O reconciler read-only compara a inbox com os PRs vigentes. HEAD novo torna registro antigo stale. Não exclui histórico e não altera ledger.
 - Paginação incompleta, controle inválido ou comment bot alterado resulta em bloqueio conservador.
 - GitHub Actions concurrency é apenas auxiliar; NÃO é fila durável, CAS semântico, writer financeiro ou garantia de unicidade física de comentários.
