@@ -57,19 +57,37 @@ class FakeAPI:
         self.write_then_timeout = False
         self.control_open = True
         self.page_limit = False
+        self.inbox_scans = 0
+        self.direct_readbacks = 0
+        self.control_reads = 0
+        self.close_on_control_read = None
 
     def request(self, method: str, endpoint: str, data: dict | None = None):
         if method == "POST" and endpoint == "/issues/99/comments":
             assert data and "body" in data
             self.posts += 1
-            self.comments.append({"body": data["body"], "user": BOT})
+            self.comments.append({
+                "id": 1000 + self.posts,
+                "body": data["body"],
+                "user": BOT,
+            })
             if self.write_then_timeout:
                 self.write_then_timeout = False
                 raise MODULE.ClosedGate("GITHUB_API_UNCERTAIN")
             return self.comments[-1]
         if method == "GET" and endpoint == "/issues/99":
             return {"state": "open", "body": "MODE_A_INBOX_V1\nsomente intents"}
+        if method == "GET" and endpoint.startswith("/issues/comments/"):
+            self.direct_readbacks += 1
+            number = int(endpoint.rsplit("/", 1)[1])
+            matches = [row for row in self.comments if row.get("id") == number]
+            if len(matches) != 1:
+                raise MODULE.ClosedGate("GITHUB_API_UNCERTAIN")
+            return matches[0]
         if method == "GET" and endpoint in {"/issues/1", "/issues/2"}:
+            self.control_reads += 1
+            if self.close_on_control_read == self.control_reads:
+                self.control_open = False
             return {
                 "state": "open" if self.control_open else "closed",
                 "body": (
@@ -85,6 +103,7 @@ class FakeAPI:
 
     def pages(self, path: str):
         if path.startswith("/issues/99/comments"):
+            self.inbox_scans += 1
             if self.page_limit:
                 raise MODULE.ClosedGate("PAGINATION_LIMIT")
             return list(self.comments)
@@ -125,6 +144,23 @@ class InboxTests(unittest.TestCase):
         result = MODULE.ingest(api, 99, MAIN_SHA, None)
         self.assertEqual(result["new_intents_verified"], 2)
         self.assertEqual(MODULE.reconcile(api, 99, MAIN_SHA)["missing_requests"], [])
+
+    def test_batch_readback_uses_comment_id_without_n_squared_scans(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B), pr(19, "d" * 40)])
+        outcome = MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(outcome["new_intents_verified"], 3)
+        self.assertEqual(api.posts, 3)
+        self.assertEqual(api.inbox_scans, 1)
+        self.assertEqual(api.direct_readbacks, 3)
+        self.assertEqual(api.control_reads, 6)
+
+    def test_control_is_rechecked_before_post(self):
+        api = FakeAPI()
+        api.close_on_control_read = 2
+        with self.assertRaisesRegex(MODULE.ClosedGate, "INVALID_CONTROL_ISSUE"):
+            MODULE.ingest(api, 99, MAIN_SHA, 17)
+        self.assertEqual(api.posts, 0)
+        self.assertEqual(api.control_reads, 2)
 
     def test_invalid_open_pr_does_not_block_other_candidates(self):
         api = FakeAPI(
