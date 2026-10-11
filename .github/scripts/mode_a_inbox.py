@@ -18,8 +18,10 @@ REPOSITORY = "RamonRDR/SaaS-Project"
 INBOX_MARKER = "MODE_A_INBOX_V1"
 COMMENT_PREFIX = "MODE_A_INBOX_V1\n"
 BOT_LOGIN = "github-actions[bot]"
-MAX_LIST_ITEMS = 200_000
-PAGE_SIZE = 10
+# 100 itens/página reduz chamadas; 5.000 itens/página completa <= 51 GETs.
+# Não habilitar a fase operacional sem política de rotação antes deste teto.
+MAX_LIST_ITEMS = 5_000
+PAGE_SIZE = 100
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 MAX_BODY_BYTES = 16384
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
