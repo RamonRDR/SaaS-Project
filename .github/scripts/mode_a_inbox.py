@@ -376,21 +376,38 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
             for existing in by_id[key]:
                 verify_request_context(existing, intent)
             continue
-        # Novo readback do PR evita gravar HEAD obsoleto por corrida óbvia.
+        # O controle pode ter mudado desde a seleção inicial do PR.
         fresh = api.request("GET", f"/pulls/{intent['pr_number']}")
         if make_intent(fresh, main_sha) != intent:
             raise ClosedGate("STALE_PR_BEFORE_WRITE")
+        validate_control_issue(api, intent["control_issue"], inbox)
         body = serialize_intent(intent)
         try:
-            api.request("POST", f"/issues/{inbox}/comments", {"body": body})
-        except ClosedGate:
-            # ACK incerto nunca implica que o registro não foi gravado.
-            pass
-        after = records(api, inbox)
-        matches = [x for x in after if x["request_id"] == key]
-        if not matches:
-            raise ClosedGate("INBOX_READBACK_UNCERTAIN")
-        for recorded in matches:
+            acknowledgment = api.request(
+                "POST", f"/issues/{inbox}/comments", {"body": body}
+            )
+        except ClosedGate as exc:
+            if str(exc) != "GITHUB_API_UNCERTAIN":
+                raise
+            # Somente ACK ambíguo exige releitura da inbox integral.
+            after = records(api, inbox)
+            matches = [x for x in after if x["request_id"] == key]
+            if not matches:
+                raise ClosedGate("INBOX_READBACK_UNCERTAIN") from exc
+            for recorded in matches:
+                verify_request_context(recorded, intent)
+        else:
+            # POST 201 não dispensa readback autoritativo, mas o GET por ID
+            # evita reler toda a inbox para cada novo registro.
+            if not isinstance(acknowledgment, dict):
+                raise ClosedGate("INVALID_INBOX_ACK")
+            comment_id = positive_number(acknowledgment.get("id"))
+            received = api.request("GET", f"/issues/comments/{comment_id}")
+            if not isinstance(received, dict) or received.get("id") != comment_id:
+                raise ClosedGate("INBOX_READBACK_UNCERTAIN")
+            recorded = parse_comment(received)
+            if recorded is None or received.get("body") != body:
+                raise ClosedGate("INBOX_READBACK_UNCERTAIN")
             verify_request_context(recorded, intent)
         known.add(key)
         new += 1
