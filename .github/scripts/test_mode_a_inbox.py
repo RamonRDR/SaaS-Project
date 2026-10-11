@@ -320,6 +320,29 @@ class InboxTests(unittest.TestCase):
         self.assertEqual(len(records), total)
         self.assertEqual(records[-1]["id"], total - 1)
 
+    def test_inbox_page_budget_is_strictly_bounded(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        total = MODULE.MAX_LIST_ITEMS + MODULE.PAGE_SIZE
+        pages_seen = []
+
+        def fake_request(method, endpoint, data=None):
+            self.assertEqual(method, "GET")
+            page = int(endpoint.rsplit("page=", 1)[1])
+            pages_seen.append(page)
+            start = (page - 1) * MODULE.PAGE_SIZE
+            return [
+                {"id": index}
+                for index in range(start, min(start + MODULE.PAGE_SIZE, total))
+            ]
+
+        api.request = fake_request
+        with self.assertRaisesRegex(
+            MODULE.ClosedGate, "INBOX_CAPACITY_SAFETY_GATE"
+        ):
+            api.pages("/issues/99/comments")
+        self.assertEqual(MODULE.PAGE_SIZE, 100)
+        self.assertLessEqual(len(pages_seen), 51)
+
     def test_exact_multiple_page_size_requires_empty_final_page(self):
         api = MODULE.GitHubAPI("test-token-not-real")
         total = MODULE.PAGE_SIZE * 3
