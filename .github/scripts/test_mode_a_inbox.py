@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 SPEC = importlib.util.spec_from_file_location(
@@ -239,6 +241,87 @@ class InboxTests(unittest.TestCase):
         api.page_limit = True
         with self.assertRaisesRegex(MODULE.ClosedGate, "PAGINATION_LIMIT"):
             MODULE.reconcile(api, 99, MAIN_SHA)
+
+    def test_complete_api_response_beyond_old_two_mb_limit(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        raw = b'{"data":"' + b"a" * 2_200_000 + b'"}'
+        with patch.object(
+            MODULE.urllib.request, "urlopen", return_value=io.BytesIO(raw)
+        ):
+            result = api.request("GET", "/issues/99")
+        self.assertEqual(len(result["data"]), 2_200_000)
+
+    def test_invalid_or_oversize_response_fails_closed(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        for raw, reason in [
+            (b'{"data":', "INVALID_API_RESPONSE"),
+            (b"x" * (MODULE.MAX_RESPONSE_BYTES + 100), "API_RESPONSE_TOO_LARGE"),
+        ]:
+            with self.subTest(reason=reason):
+                with patch.object(
+                    MODULE.urllib.request, "urlopen", return_value=io.BytesIO(raw)
+                ):
+                    with self.assertRaisesRegex(MODULE.ClosedGate, reason):
+                        api.request("GET", "/issues/99")
+
+    def test_pagination_complete_after_2000_records(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        total = 2_017
+
+        def fake_request(method, endpoint, data=None):
+            self.assertEqual(method, "GET")
+            page = int(endpoint.rsplit("page=", 1)[1])
+            start = (page - 1) * MODULE.PAGE_SIZE
+            return [
+                {"id": index}
+                for index in range(start, min(start + MODULE.PAGE_SIZE, total))
+            ]
+
+        api.request = fake_request
+        records = api.pages("/issues/99/comments")
+        self.assertEqual(len(records), total)
+        self.assertEqual(records[-1]["id"], total - 1)
+
+    def test_exact_multiple_page_size_requires_empty_final_page(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        total = MODULE.PAGE_SIZE * 3
+        requested = []
+
+        def fake_request(method, endpoint, data=None):
+            page = int(endpoint.rsplit("page=", 1)[1])
+            requested.append(page)
+            start = (page - 1) * MODULE.PAGE_SIZE
+            return [
+                {"id": index}
+                for index in range(start, min(start + MODULE.PAGE_SIZE, total))
+            ]
+
+        api.request = fake_request
+        self.assertEqual(len(api.pages("/issues/99/comments")), total)
+        self.assertEqual(requested[-1], 4)
+
+    def test_ingest_uses_actual_main_source_sha_not_event_sha(self):
+        fake = FakeAPI()
+        env = {
+            "GITHUB_REPOSITORY": MODULE.REPOSITORY,
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_SHA": SHA_A,  # Event snapshot, potentially stale.
+            "MODE_A_SOURCE_SHA": MAIN_SHA,  # Commit actually checked out.
+            "GITHUB_EVENT_NAME": "schedule",
+            "MODE_A_INBOX_ISSUE": "99",
+            "MODE_A_INTAKE_ENABLED": "true",
+            "GH_TOKEN": "fake",
+        }
+        with (
+            patch.dict(MODULE.os.environ, env, clear=True),
+            patch.object(sys, "argv", ["mode_a_inbox.py", "intake"]),
+            patch.object(MODULE, "GitHubAPI", return_value=fake),
+            patch("builtins.print"),
+        ):
+            self.assertEqual(MODULE.main(), 0)
+        self.assertEqual(fake.posts, 1)
+        stored = MODULE.parse_comment(fake.comments[0])
+        self.assertEqual(stored["main_source_sha"], MAIN_SHA)
 
     def test_real_json_roundtrip(self):
         item = MODULE.make_intent(pr(), MAIN_SHA)
