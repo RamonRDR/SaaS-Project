@@ -56,6 +56,11 @@ class FakeAPI:
         self.posts = 0
         self.write_then_timeout = False
         self.control_open = True
+        self.inbox_locked = True
+        self.inbox_marker = "MODE_A_INBOX_V1"
+        self.inbox_issue_reads = 0
+        self.unlock_on_inbox_read = None
+        self.change_marker_on_inbox_read = None
         self.page_limit = False
         self.inbox_scans = 0
         self.direct_readbacks = 0
@@ -78,7 +83,16 @@ class FakeAPI:
                 raise MODULE.ClosedGate("GITHUB_API_UNCERTAIN")
             return self.comments[-1]
         if method == "GET" and endpoint == "/issues/99":
-            return {"state": "open", "body": "MODE_A_INBOX_V1\nsomente intents"}
+            self.inbox_issue_reads += 1
+            if self.unlock_on_inbox_read == self.inbox_issue_reads:
+                self.inbox_locked = False
+            if self.change_marker_on_inbox_read == self.inbox_issue_reads:
+                self.inbox_marker = "REVOKED_INBOX"
+            return {
+                "state": "open",
+                "locked": self.inbox_locked,
+                "body": self.inbox_marker + "\nsomente intents",
+            }
         if method == "GET" and endpoint.startswith("/issues/comments/"):
             self.direct_readbacks += 1
             number = int(endpoint.rsplit("/", 1)[1])
@@ -175,6 +189,41 @@ class InboxTests(unittest.TestCase):
         self.assertEqual(result["new_intents_verified"], 1)
         self.assertEqual(api.posts, 1)
         self.assertEqual(api.comments[0]["user"], BOT)
+
+    def test_inbox_must_be_locked_for_authorized_intake(self):
+        api = FakeAPI()
+        api.inbox_locked = False
+        with self.assertRaisesRegex(MODULE.ClosedGate, "INVALID_INBOX_ISSUE"):
+            MODULE.ingest(api, 99, MAIN_SHA, 17)
+        self.assertEqual(api.posts, 0)
+
+    def test_unlocking_inbox_during_scan_revokes_writes(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B)])
+        # Primeira consulta antes do scan; segunda imediatamente
+        # antes do primeiro POST; revogação precisa interromper o lote.
+        api.unlock_on_inbox_read = 2
+        with self.assertRaisesRegex(MODULE.ClosedGate, "INVALID_INBOX_ISSUE"):
+            MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(api.posts, 0)
+
+    def test_inbox_marker_revocation_between_batch_writes(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B)])
+        # Primeira validação e duas revalidações pré-escrita.
+        api.change_marker_on_inbox_read = 3
+        with self.assertRaisesRegex(MODULE.ClosedGate, "INVALID_INBOX_ISSUE"):
+            MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(api.posts, 1)
+        self.assertEqual(api.inbox_issue_reads, 3)
+
+    def test_locked_issue_rejects_non_bot_forged_records(self):
+        api = FakeAPI()
+        valid = MODULE.make_intent(pr(), MAIN_SHA)
+        assert valid
+        api.comments.append(comment(valid, {"login": "attacker", "id": 5}))
+        outcome = MODULE.ingest(api, 99, MAIN_SHA, 17)
+        self.assertEqual(outcome["new_intents_verified"], 1)
+        self.assertEqual(api.inbox_scans, 1)
+        self.assertEqual(api.posts, 1)
 
     def test_inbox_cannot_be_control_issue(self):
         api = FakeAPI([pr(body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 99")])
@@ -288,6 +337,25 @@ class InboxTests(unittest.TestCase):
         ):
             result = api.request("GET", "/issues/99")
         self.assertEqual(len(result["data"]), 2_200_000)
+
+    def test_complete_large_page_of_100_unicode_comments(self):
+        # 100 comentários de tamanho próximo ao máximo do GitHub,
+        # com expansão de Unicode em JSON além do limite antigo de 8 MiB.
+        api = MODULE.GitHubAPI("test-token-not-real")
+        comments = [
+            {"id": idx, "user": {"login": "github-actions[bot]"},
+             "body": "☀" * 65_536}
+            for idx in range(MODULE.PAGE_SIZE)
+        ]
+        raw = json.dumps(comments, ensure_ascii=True).encode("utf-8")
+        self.assertGreater(len(raw), 8 * 1024 * 1024)
+        self.assertLess(len(raw), MODULE.MAX_RESPONSE_BYTES)
+        with patch.object(
+            MODULE.urllib.request, "urlopen", return_value=io.BytesIO(raw)
+        ):
+            parsed = api.request("GET", "/issues/99/comments?per_page=100&page=1")
+        self.assertEqual(len(parsed), 100)
+        self.assertEqual(len(parsed[-1]["body"]), 65_536)
 
     def test_invalid_or_oversize_response_fails_closed(self):
         api = MODULE.GitHubAPI("test-token-not-real")
