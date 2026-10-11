@@ -313,6 +313,12 @@ class InboxTests(unittest.TestCase):
                 with self.assertRaises(MODULE.ClosedGate):
                     MODULE.make_intent(pr(body=body), MAIN_SHA)
 
+    def test_windows_crlf_metadata_is_eligible(self):
+        candidate = pr(body="ORCHESTRATOR_MODE: A\r\nCONTROL_ISSUE: 1\r\n")
+        entry = MODULE.make_intent(candidate, MAIN_SHA)
+        assert entry
+        self.assertEqual(entry["control_issue"], 1)
+
     def test_non_mode_a_pr_is_ineligible(self):
         self.assertIsNone(
             MODULE.make_intent(pr(body="ORCHESTRATOR_MODE: NONE"), MAIN_SHA)
@@ -338,12 +344,16 @@ class InboxTests(unittest.TestCase):
             result = api.request("GET", "/issues/99")
         self.assertEqual(len(result["data"]), 2_200_000)
 
-    def test_complete_large_page_of_100_unicode_comments(self):
-        # 100 comentários de tamanho próximo ao máximo do GitHub,
-        # com expansão de Unicode em JSON além do limite antigo de 8 MiB.
+    def test_complete_large_page_of_emoji_surrogate_pairs(self):
+        # Pior caso de 4 bytes por caractere e escape JSON em 12 bytes.
+        # Ler página inteira sem truncar nem extrapolar o limite definido.
         api = MODULE.GitHubAPI("test-token-not-real")
         comments = [
-            {"id": idx, "user": {"login": "github-actions[bot]"}, "body": "☀" * 65_536}
+            {
+                "id": idx,
+                "user": {"login": "github-actions[bot]"},
+                "body": "😀" * 65_536,
+            }
             for idx in range(MODULE.PAGE_SIZE)
         ]
         raw = json.dumps(comments, ensure_ascii=True).encode("utf-8")
@@ -352,8 +362,8 @@ class InboxTests(unittest.TestCase):
         with patch.object(
             MODULE.urllib.request, "urlopen", return_value=io.BytesIO(raw)
         ):
-            parsed = api.request("GET", "/issues/99/comments?per_page=100&page=1")
-        self.assertEqual(len(parsed), 100)
+            parsed = api.request("GET", "/issues/99/comments?per_page=50&page=1")
+        self.assertEqual(len(parsed), MODULE.PAGE_SIZE)
         self.assertEqual(len(parsed[-1]["body"]), 65_536)
 
     def test_invalid_or_oversize_response_fails_closed(self):
@@ -405,8 +415,8 @@ class InboxTests(unittest.TestCase):
         api.request = fake_request
         with self.assertRaisesRegex(MODULE.ClosedGate, "INBOX_CAPACITY_SAFETY_GATE"):
             api.pages("/issues/99/comments")
-        self.assertEqual(MODULE.PAGE_SIZE, 100)
-        self.assertLessEqual(len(pages_seen), 51)
+        self.assertEqual(MODULE.PAGE_SIZE, 50)
+        self.assertLessEqual(len(pages_seen), 101)
 
     def test_exact_multiple_page_size_requires_empty_final_page(self):
         api = MODULE.GitHubAPI("test-token-not-real")
