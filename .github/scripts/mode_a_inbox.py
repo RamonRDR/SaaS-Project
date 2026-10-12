@@ -202,11 +202,16 @@ class GitHubAPI:
             raise ClosedGate("INVALID_API_PATH")
         if self.request_count >= MAX_API_CALLS_PER_RUN:
             raise ClosedGate("API_BUDGET_EXHAUSTED")
-        # Após a revalidação, um POST deve deixar espaço para seu readback.
+        # Orçamento primário compartilhado: interromper TODAS as chamadas
+        # ao chegar à reserva; não esgotar a cota com leituras de página.
         if (
-            method == "POST"
-            and self.rate_remaining is not None
-            and self.rate_remaining < MIN_GITHUB_RATE_REMAINING + 2
+            self.rate_remaining is not None
+            and self.rate_remaining <= MIN_GITHUB_RATE_REMAINING
+        ):
+            raise ClosedGate("GITHUB_RATE_BUDGET_LOW")
+        if method == "POST" and (
+            self.rate_remaining is None
+            or self.rate_remaining < MIN_GITHUB_RATE_REMAINING + 2
         ):
             raise ClosedGate("GITHUB_RATE_BUDGET_LOW")
         self.request_count += 1
@@ -240,11 +245,15 @@ class GitHubAPI:
                     if headers is not None
                     else None
                 )
-                if remaining is not None:
-                    try:
-                        self.rate_remaining = positive_number_or_zero(remaining)
-                    except ClosedGate as exc:
-                        raise ClosedGate("INVALID_RATE_LIMIT_HEADER") from exc
+                # Sem header não se conhece o orçamento. Nem GETs nem POSTs
+                # posteriores podem agir com base em saldo antigo.
+                if remaining is None:
+                    self.rate_remaining = None
+                    raise ClosedGate("MISSING_RATE_LIMIT_HEADER")
+                try:
+                    self.rate_remaining = positive_number_or_zero(remaining)
+                except ClosedGate as exc:
+                    raise ClosedGate("INVALID_RATE_LIMIT_HEADER") from exc
                 return parsed
         except urllib.error.HTTPError as exc:
             if exc.code == 404 and method == "GET" and endpoint.startswith("/issues/"):
@@ -510,6 +519,8 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
     return {
         "state": "INTAKE_PARTIAL_BUDGET" if remaining_candidates else "INTAKE_ONLY",
         "remaining_candidates": remaining_candidates,
+        "inbox_capacity_remaining": MAX_LIST_ITEMS - (physical_comments + new),
+        "inbox_rotation_required_soon": physical_comments + new >= 4_500,
         "new_intents_verified": new,
         "eligible_prs": len(intents),
         "paid_inference_enabled": False,
