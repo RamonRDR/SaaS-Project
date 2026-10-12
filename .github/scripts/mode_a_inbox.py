@@ -22,6 +22,11 @@ BOT_LOGIN = "github-actions[bot]"
 # 50 comentários de 65.536 emojis (escape em pares substitutos JSON)
 # totalizam ~39 MiB, abaixo do limite de 48 MiB por resposta.
 MAX_LIST_ITEMS = 5_000
+# A inbox confirmada também é o checkpoint durável: cada execução retoma
+# as intents ainda ausentes, sem depender de cursor posicional de PRs.
+MAX_NEW_INTENTS_PER_SCAN = 60
+MAX_API_CALLS_PER_RUN = 450
+MIN_GITHUB_RATE_REMAINING = 150
 PAGE_SIZE = 50
 MAX_RESPONSE_BYTES = 48 * 1024 * 1024
 MAX_BODY_BYTES = 16384
@@ -39,6 +44,12 @@ def positive_number(value: object) -> int:
     if isinstance(value, str) and INT_PATTERN.fullmatch(value):
         return int(value)
     raise ClosedGate("INVALID_NUMBER")
+
+
+def positive_number_or_zero(value: object) -> int:
+    if isinstance(value, str) and re.fullmatch(r"[0-9]{1,12}", value):
+        return int(value)
+    raise ClosedGate("INVALID_RATE_LIMIT_NUMBER")
 
 
 def canonical(data: dict[str, Any]) -> str:
@@ -183,10 +194,22 @@ class GitHubAPI:
         if not token:
             raise ClosedGate("MISSING_GITHUB_TOKEN")
         self.token = token
+        self.request_count = 0
+        self.rate_remaining: int | None = None
 
     def request(self, method: str, endpoint: str, data: dict | None = None) -> Any:
         if not endpoint.startswith("/") or "//" in endpoint:
             raise ClosedGate("INVALID_API_PATH")
+        if self.request_count >= MAX_API_CALLS_PER_RUN:
+            raise ClosedGate("API_BUDGET_EXHAUSTED")
+        # Após a revalidação, um POST deve deixar espaço para seu readback.
+        if (
+            method == "POST"
+            and self.rate_remaining is not None
+            and self.rate_remaining < MIN_GITHUB_RATE_REMAINING + 2
+        ):
+            raise ClosedGate("GITHUB_RATE_BUDGET_LOW")
+        self.request_count += 1
         url = "https://api.github.com/repos/" + REPOSITORY + endpoint
         payload = canonical(data).encode("utf-8") if data is not None else None
         request = urllib.request.Request(
@@ -211,6 +234,17 @@ class GitHubAPI:
                     parsed = json.loads(raw)
                 except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                     raise ClosedGate("INVALID_API_RESPONSE") from exc
+                headers = getattr(response, "headers", None)
+                remaining = (
+                    headers.get("X-RateLimit-Remaining")
+                    if headers is not None
+                    else None
+                )
+                if remaining is not None:
+                    try:
+                        self.rate_remaining = positive_number_or_zero(remaining)
+                    except ClosedGate as exc:
+                        raise ClosedGate("INVALID_RATE_LIMIT_HEADER") from exc
                 return parsed
         except urllib.error.HTTPError as exc:
             if exc.code == 404 and method == "GET" and endpoint.startswith("/issues/"):
@@ -256,6 +290,7 @@ def validate_inbox(api: GitHubAPI, inbox_number: int) -> None:
 
 def records(api: GitHubAPI, inbox_number: int) -> list[dict[str, Any]]:
     comments = api.pages(f"/issues/{inbox_number}/comments")
+    api.inbox_comment_count = len(comments)
     valid: list[dict[str, Any]] = []
     for comment in comments:
         item = parse_comment(comment)
@@ -309,18 +344,20 @@ def current_intents(
     only: int | None = None,
     inbox_number: int = 0,
 ) -> list[dict]:
+    # A listagem completa serve somente para descobrir candidatos. A decisão
+    # de escrita sempre relê HEAD, issue de controle e inbox.
     if only is not None:
         candidates = [api.request("GET", f"/pulls/{only}")]
     else:
         candidates = api.pages("/pulls?state=open")
     intents: list[dict] = []
+    discovery_controls: dict[int, bool] = {}
     for item in candidates:
         if not isinstance(item, dict):
             raise ClosedGate("INVALID_PR_ITEM")
-        number = positive_number(item.get("number"))
-        pr = api.request("GET", f"/pulls/{number}")
+        positive_number(item.get("number"))
         try:
-            intent = make_intent(pr, main_sha)
+            intent = make_intent(item, main_sha)
         except ClosedGate:
             # Um PR malformado não pode impedir recuperação dos demais.
             if only is not None:
@@ -328,15 +365,29 @@ def current_intents(
             continue
         if intent is None:
             continue
-        try:
-            validate_control_issue(api, intent["control_issue"], inbox_number)
-        except ClosedGate as exc:
-            if only is not None or str(exc) == "GITHUB_API_UNCERTAIN":
-                raise
-            continue
-        intents.append(intent)
+        control = intent["control_issue"]
+        if only is not None or control not in discovery_controls:
+            try:
+                validate_control_issue(api, control, inbox_number)
+            except ClosedGate as exc:
+                if only is not None or str(exc) == "GITHUB_API_UNCERTAIN":
+                    raise
+                discovery_controls[control] = False
+                continue
+            discovery_controls[control] = True
+        if discovery_controls[control]:
+            intents.append(intent)
     return intents
 
+
+def has_write_budget(api: GitHubAPI) -> bool:
+    # Custo normal por intenção nova: PR, controle, inbox, POST e readback.
+    # O limite é conservador e cobre todas as chamadas feitas via request().
+    used = getattr(api, "request_count", 0)
+    remaining = getattr(api, "rate_remaining", None)
+    return used + 5 <= MAX_API_CALLS_PER_RUN and (
+        remaining is None or remaining >= MIN_GITHUB_RATE_REMAINING + 5
+    )
 
 def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
     validate_inbox(api, inbox)
@@ -349,11 +400,8 @@ def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
         for existing in by_id.get(intent["request_id"], []):
             verify_request_context(existing, intent)
     missing = sorted(x["request_id"] for x in live if x["request_id"] not in by_id)
-    stale = sum(
-        1
-        for record in entries
-        if record["request_id"] not in {i["request_id"] for i in live}
-    )
+    live_ids = {i["request_id"] for i in live}
+    stale = sum(1 for record in entries if record["request_id"] not in live_ids)
     return {
         "state": "RECONCILED_READ_ONLY",
         "inbox_records": len(entries),
@@ -376,11 +424,22 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
         by_id.setdefault(item["request_id"], []).append(item)
     intents = current_intents(api, main_sha, only, inbox)
     new = 0
+    remaining_candidates = 0
+    physical_comments = api.inbox_comment_count
     for intent in intents:
         key = intent["request_id"]
         if key in known:
             for existing in by_id[key]:
                 verify_request_context(existing, intent)
+            continue
+        # Cada POST precisa de espaço para revalidar, publicar e confirmar.
+        # O histórico confirmado da inbox permite retomar sem cursor novo.
+        if physical_comments + new >= MAX_LIST_ITEMS:
+            raise ClosedGate("INBOX_CAPACITY_SAFETY_GATE")
+        if (only is None and new >= MAX_NEW_INTENTS_PER_SCAN) or not has_write_budget(api):
+            if only is not None:
+                raise ClosedGate("API_BUDGET_EXHAUSTED")
+            remaining_candidates += 1
             continue
         # O controle pode ter mudado desde a seleção inicial do PR.
         fresh = api.request("GET", f"/pulls/{intent['pr_number']}")
@@ -446,7 +505,8 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
         known.add(key)
         new += 1
     return {
-        "state": "INTAKE_ONLY",
+        "state": "INTAKE_PARTIAL_BUDGET" if remaining_candidates else "INTAKE_ONLY",
+        "remaining_candidates": remaining_candidates,
         "new_intents_verified": new,
         "eligible_prs": len(intents),
         "paid_inference_enabled": False,
