@@ -436,7 +436,10 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
         # O histórico confirmado da inbox permite retomar sem cursor novo.
         if physical_comments + new >= MAX_LIST_ITEMS:
             raise ClosedGate("INBOX_CAPACITY_SAFETY_GATE")
-        if (only is None and new >= MAX_NEW_INTENTS_PER_SCAN) or not has_write_budget(api):
+        if (
+            (only is None and new >= MAX_NEW_INTENTS_PER_SCAN)
+            or not has_write_budget(api)
+        ):
             if only is not None:
                 raise ClosedGate("API_BUDGET_EXHAUSTED")
             remaining_candidates += 1
