@@ -25,6 +25,14 @@ MAIN_SHA = "c" * 40
 BOT = {"login": "github-actions[bot]", "id": 41898282}
 
 
+class RateResponse(io.BytesIO):
+    """Resposta HTTP simulada com cota REST visível."""
+
+    def __init__(self, raw: bytes, remaining: int = 900):
+        super().__init__(raw)
+        self.headers = {"X-RateLimit-Remaining": str(remaining)}
+
+
 def pr(number: int = 17, sha: str = SHA_A, body: str | None = None) -> dict:
     return {
         "number": number,
@@ -170,6 +178,59 @@ class InboxTests(unittest.TestCase):
         self.assertEqual(outcome["new_intents_verified"], 0)
         self.assertEqual(outcome["remaining_candidates"], 1)
         self.assertEqual(api.posts, 0)
+
+    def test_github_api_never_uses_missing_rate_headers(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        with patch.object(
+            MODULE.urllib.request, "urlopen",
+            return_value=io.BytesIO(b'{"state":"open"}'),
+        ):
+            with self.assertRaisesRegex(MODULE.ClosedGate, "MISSING_RATE_LIMIT_HEADER"):
+                api.request("GET", "/issues/99")
+        self.assertIsNone(api.rate_remaining)
+        with self.assertRaisesRegex(MODULE.ClosedGate, "GITHUB_RATE_BUDGET_LOW"):
+            api.request("POST", "/issues/99/comments", {"body": "test"})
+
+    def test_shared_rate_limit_stops_reads_at_reserve(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        remaining = [152, 151, 150]
+
+        def shared_pool(_request, timeout=15):
+            return RateResponse(b'{"state":"open"}', remaining.pop(0))
+
+        with patch.object(MODULE.urllib.request, "urlopen", side_effect=shared_pool):
+            for _ in range(3):
+                api.request("GET", "/issues/99")
+            with self.assertRaisesRegex(MODULE.ClosedGate, "GITHUB_RATE_BUDGET_LOW"):
+                api.request("GET", "/issues/99")
+        self.assertEqual(api.request_count, 3)
+        self.assertEqual(len(remaining), 0)
+
+    def test_limited_rate_never_starts_post_without_readback_room(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        api.rate_remaining = MODULE.MIN_GITHUB_RATE_REMAINING + 1
+        with self.assertRaisesRegex(MODULE.ClosedGate, "GITHUB_RATE_BUDGET_LOW"):
+            api.request("POST", "/issues/99/comments", {"body": "test"})
+        self.assertEqual(api.request_count, 0)
+
+    def test_workflow_serializes_writers_without_losing_recovery_lane(self):
+        path = Path(__file__).resolve().parents[1] / "workflows" / "mode-a-intake.yml"
+        yaml = path.read_text(encoding="utf-8")
+        self.assertIn("github.event_name == 'schedule' && 'recovery' || 'events'", yaml)
+        self.assertIn("group: mode-a-inbox-writer-global", yaml)
+        self.assertIn("queue: max", yaml)
+        self.assertIn("cancel-in-progress: false", yaml)
+
+    def test_inbox_capacity_warning_and_full_gate(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B)])
+        api.comments = [
+            {"id": i + 1, "body": "ignored", "user": {"login": "other"}}
+            for i in range(MODULE.MAX_LIST_ITEMS - 1)
+        ]
+        with self.assertRaisesRegex(MODULE.ClosedGate, "INBOX_CAPACITY_SAFETY_GATE"):
+            MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(api.posts, 1)
+        self.assertEqual(len(api.comments), MODULE.MAX_LIST_ITEMS)
 
     def test_request_hard_budget_fails_closed(self):
         api = MODULE.GitHubAPI("test-token-not-real")
@@ -500,7 +561,7 @@ class InboxTests(unittest.TestCase):
         api = MODULE.GitHubAPI("test-token-not-real")
         raw = b'{"data":"' + b"a" * 2_200_000 + b'"}'
         with patch.object(
-            MODULE.urllib.request, "urlopen", return_value=io.BytesIO(raw)
+            MODULE.urllib.request, "urlopen", return_value=RateResponse(raw)
         ):
             result = api.request("GET", "/issues/99")
         self.assertEqual(len(result["data"]), 2_200_000)
@@ -521,7 +582,7 @@ class InboxTests(unittest.TestCase):
         self.assertGreater(len(raw), 8 * 1024 * 1024)
         self.assertLess(len(raw), MODULE.MAX_RESPONSE_BYTES)
         with patch.object(
-            MODULE.urllib.request, "urlopen", return_value=io.BytesIO(raw)
+            MODULE.urllib.request, "urlopen", return_value=RateResponse(raw)
         ):
             parsed = api.request("GET", "/issues/99/comments?per_page=50&page=1")
         self.assertEqual(len(parsed), MODULE.PAGE_SIZE)
@@ -535,7 +596,7 @@ class InboxTests(unittest.TestCase):
         ]:
             with self.subTest(reason=reason):
                 with patch.object(
-                    MODULE.urllib.request, "urlopen", return_value=io.BytesIO(raw)
+                    MODULE.urllib.request, "urlopen", return_value=RateResponse(raw)
                 ):
                     with self.assertRaisesRegex(MODULE.ClosedGate, reason):
                         api.request("GET", "/issues/99")
