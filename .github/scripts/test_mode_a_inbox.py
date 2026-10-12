@@ -178,6 +178,110 @@ class InboxTests(unittest.TestCase):
         self.assertEqual(api.posts, 0)
         self.assertEqual(api.control_reads, 2)
 
+    def test_scheduled_scan_skips_stale_head_and_processes_next_pr(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B)])
+        original = api.request
+        reads = 0
+
+        def change_head(method, endpoint, data=None):
+            nonlocal reads
+            if method == "GET" and endpoint == "/pulls/17":
+                reads += 1
+                if reads == 2:
+                    return pr(17, "d" * 40)
+            return original(method, endpoint, data)
+
+        with patch.object(api, "request", side_effect=change_head):
+            outcome = MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(outcome["eligible_prs"], 2)
+        self.assertEqual(outcome["new_intents_verified"], 1)
+        self.assertEqual(api.posts, 1)
+        entry = MODULE.parse_comment(api.comments[0])
+        assert entry
+        self.assertEqual(entry["pr_number"], 18)
+
+    def test_scheduled_scan_skips_invalidated_pr_metadata(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B)])
+        original = api.request
+        reads = 0
+
+        def invalidate_metadata(method, endpoint, data=None):
+            nonlocal reads
+            if method == "GET" and endpoint == "/pulls/17":
+                reads += 1
+                if reads == 2:
+                    return pr(17, body="ORCHESTRATOR_MODE: A\\nCONTROL_ISSUE: invalid")
+            return original(method, endpoint, data)
+
+        with patch.object(api, "request", side_effect=invalidate_metadata):
+            outcome = MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(outcome["new_intents_verified"], 1)
+        self.assertEqual(api.posts, 1)
+        stored = MODULE.parse_comment(api.comments[0])
+        assert stored
+        self.assertEqual(stored["pr_number"], 18)
+
+    def test_targeted_scan_keeps_stale_head_as_failure(self):
+        api = FakeAPI()
+        original = api.request
+        reads = 0
+
+        def change_head(method, endpoint, data=None):
+            nonlocal reads
+            if method == "GET" and endpoint == "/pulls/17":
+                reads += 1
+                if reads == 2:
+                    return pr(17, SHA_B)
+            return original(method, endpoint, data)
+
+        with patch.object(api, "request", side_effect=change_head):
+            with self.assertRaisesRegex(MODULE.ClosedGate, "STALE_PR_BEFORE_WRITE"):
+                MODULE.ingest(api, 99, MAIN_SHA, 17)
+        self.assertEqual(api.posts, 0)
+
+    def test_scheduled_scan_does_not_swallow_api_failure(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B)])
+        original = api.request
+        reads = 0
+
+        def uncertain_read(method, endpoint, data=None):
+            nonlocal reads
+            if method == "GET" and endpoint == "/pulls/17":
+                reads += 1
+                if reads == 2:
+                    raise MODULE.ClosedGate("GITHUB_API_UNCERTAIN")
+            return original(method, endpoint, data)
+
+        with patch.object(api, "request", side_effect=uncertain_read):
+            with self.assertRaisesRegex(MODULE.ClosedGate, "GITHUB_API_UNCERTAIN"):
+                MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(api.posts, 0)
+
+    def test_scheduled_scan_skips_revoked_control_and_keeps_others(self):
+        api = FakeAPI([
+            pr(17),
+            pr(18, SHA_B, "ORCHESTRATOR_MODE: A\\nCONTROL_ISSUE: 2\\n"),
+        ])
+        original = api.request
+        control_one_reads = 0
+
+        def close_first_control(method, endpoint, data=None):
+            nonlocal control_one_reads
+            result = original(method, endpoint, data)
+            if method == "GET" and endpoint == "/issues/1":
+                control_one_reads += 1
+                if control_one_reads == 2:
+                    return {**result, "state": "closed"}
+            return result
+
+        with patch.object(api, "request", side_effect=close_first_control):
+            outcome = MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(outcome["new_intents_verified"], 1)
+        self.assertEqual(api.posts, 1)
+        stored = MODULE.parse_comment(api.comments[0])
+        assert stored
+        self.assertEqual(stored["pr_number"], 18)
+
     def test_invalid_open_pr_does_not_block_other_candidates(self):
         api = FakeAPI(
             [
