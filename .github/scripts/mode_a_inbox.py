@@ -394,7 +394,18 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
             if only is not None:
                 raise ClosedGate("STALE_PR_BEFORE_WRITE")
             continue
-        validate_control_issue(api, intent["control_issue"], inbox)
+        try:
+            validate_control_issue(api, intent["control_issue"], inbox)
+        except ClosedGate as exc:
+            # Um controle revogado pertence ao candidato; indisponibilidade
+            # da API não é evidência de revogação e bloqueia o lote.
+            if only is not None or str(exc) not in {
+                "INVALID_CONTROL_ISSUE",
+                "INVALID_CONTROL_SCHEMA",
+                "CONTROL_EQUALS_INBOX",
+            }:
+                raise
+            continue
         # O marcador, estado ou lock da inbox pode ser revogado durante
         # um lote. A última decisão de escrita exige a guarda vigente.
         validate_inbox(api, inbox)
