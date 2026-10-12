@@ -384,8 +384,16 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
             continue
         # O controle pode ter mudado desde a seleção inicial do PR.
         fresh = api.request("GET", f"/pulls/{intent['pr_number']}")
-        if make_intent(fresh, main_sha) != intent:
-            raise ClosedGate("STALE_PR_BEFORE_WRITE")
+        try:
+            current = make_intent(fresh, main_sha)
+        except ClosedGate:
+            if only is not None:
+                raise
+            continue
+        if current != intent:
+            if only is not None:
+                raise ClosedGate("STALE_PR_BEFORE_WRITE")
+            continue
         validate_control_issue(api, intent["control_issue"], inbox)
         # O marcador, estado ou lock da inbox pode ser revogado durante
         # um lote. A última decisão de escrita exige a guarda vigente.
