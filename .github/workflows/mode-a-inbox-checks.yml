@@ -39,7 +39,7 @@ jobs:
       - name: CODE-01 Ruff lint
         run: ruff check .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
       - name: CODE-01 Ruff formatter
-        run: ruff format --check .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
+        run: ruff format --diff --check .github/scripts/mode_a_inbox.py .github/scripts/test_mode_a_inbox.py
       - name: SEC-02 dependências CI
         shell: bash
         run: |
