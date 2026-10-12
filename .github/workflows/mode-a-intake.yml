@@ -18,15 +18,22 @@ permissions:
   issues: write
   pull-requests: read
 
-# Eventos do mesmo PR podem ser coalescidos, mas nunca substituem
-# o slot pendente de recuperação periódica de TODOS os PRs.
+# Duas vias: eventos coalescidos em conjunto e scanner horário protegido
+# de substituição por eventos. Um lock de job serializa TODAS as escritas.
 concurrency:
-  group: mode-a-intake-${{ github.event_name }}-${{ github.event.pull_request.number || 'recovery' }}
+  group: mode-a-intake-${{ github.event_name == 'schedule' && 'recovery' || 'events' }}
   cancel-in-progress: false
 
 jobs:
   durable-intake:
     name: durable-intake
+    # Exclusão na MESMA issue de inbox, inclusive entre as duas vias.
+    # A fila max evita que eventos substituam o recovery já aguardando.
+    concurrency:
+      group: mode-a-inbox-writer-global
+      cancel-in-progress: false
+      queue: max
+    timeout-minutes: 20
     if: github.repository == 'RamonRDR/SaaS-Project' && vars.MODE_A_INTAKE_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
