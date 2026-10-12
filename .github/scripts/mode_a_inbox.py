@@ -389,6 +389,7 @@ def has_write_budget(api: GitHubAPI) -> bool:
         remaining is None or remaining >= MIN_GITHUB_RATE_REMAINING + 5
     )
 
+
 def reconcile(api: GitHubAPI, inbox: int, main_sha: str) -> dict[str, Any]:
     validate_inbox(api, inbox)
     entries = records(api, inbox)
@@ -436,9 +437,8 @@ def ingest(api: GitHubAPI, inbox: int, main_sha: str, only: int | None) -> dict:
         # O histórico confirmado da inbox permite retomar sem cursor novo.
         if physical_comments + new >= MAX_LIST_ITEMS:
             raise ClosedGate("INBOX_CAPACITY_SAFETY_GATE")
-        if (
-            (only is None and new >= MAX_NEW_INTENTS_PER_SCAN)
-            or not has_write_budget(api)
+        if (only is None and new >= MAX_NEW_INTENTS_PER_SCAN) or not has_write_budget(
+            api
         ):
             if only is not None:
                 raise ClosedGate("API_BUDGET_EXHAUSTED")
