@@ -210,7 +210,7 @@ class InboxTests(unittest.TestCase):
             if method == "GET" and endpoint == "/pulls/17":
                 reads += 1
                 if reads == 2:
-                    return pr(17, body="ORCHESTRATOR_MODE: A\\nCONTROL_ISSUE: invalid")
+                    return pr(17, body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: invalid")
             return original(method, endpoint, data)
 
         with patch.object(api, "request", side_effect=invalidate_metadata):
@@ -260,7 +260,7 @@ class InboxTests(unittest.TestCase):
     def test_scheduled_scan_skips_revoked_control_and_keeps_others(self):
         api = FakeAPI([
             pr(17),
-            pr(18, SHA_B, "ORCHESTRATOR_MODE: A\\nCONTROL_ISSUE: 2\\n"),
+            pr(18, SHA_B, "ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 2\n"),
         ])
         original = api.request
         control_one_reads = 0
