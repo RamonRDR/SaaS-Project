@@ -182,7 +182,8 @@ class InboxTests(unittest.TestCase):
     def test_github_api_never_uses_missing_rate_headers(self):
         api = MODULE.GitHubAPI("test-token-not-real")
         with patch.object(
-            MODULE.urllib.request, "urlopen",
+            MODULE.urllib.request,
+            "urlopen",
             return_value=io.BytesIO(b'{"state":"open"}'),
         ):
             with self.assertRaisesRegex(MODULE.ClosedGate, "MISSING_RATE_LIMIT_HEADER"):
