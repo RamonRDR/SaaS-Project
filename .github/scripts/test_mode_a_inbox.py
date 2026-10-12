@@ -66,8 +66,11 @@ class FakeAPI:
         self.direct_readbacks = 0
         self.control_reads = 0
         self.close_on_control_read = None
+        self.request_count = 0
+        self.rate_remaining = None
 
     def request(self, method: str, endpoint: str, data: dict | None = None):
+        self.request_count += 1
         if method == "POST" and endpoint == "/issues/99/comments":
             assert data and "body" in data
             self.posts += 1
@@ -120,15 +123,67 @@ class FakeAPI:
     def pages(self, path: str):
         if path.startswith("/issues/99/comments"):
             self.inbox_scans += 1
+            self.request_count += len(self.comments) // MODULE.PAGE_SIZE + 1
             if self.page_limit:
                 raise MODULE.ClosedGate("PAGINATION_LIMIT")
             return list(self.comments)
         if path.startswith("/pulls?state=open"):
+            self.request_count += len(self.prs) // MODULE.PAGE_SIZE + 1
             return list(self.prs.values())
         raise AssertionError(f"unexpected listing: {path}")
 
 
 class InboxTests(unittest.TestCase):
+    def test_500_pr_recovery_is_bounded_and_converges(self):
+        api = FakeAPI([pr(1000 + i) for i in range(500)])
+        total_written = 0
+        for run in range(9):
+            api.request_count = 0  # Cada Actions run recebe um token/contexto novo.
+            result = MODULE.ingest(api, 99, MAIN_SHA, None)
+            self.assertLessEqual(api.request_count, MODULE.MAX_API_CALLS_PER_RUN)
+            self.assertLessEqual(result["new_intents_verified"], 60)
+            total_written += result["new_intents_verified"]
+            if run < 8:
+                self.assertEqual(result["state"], "INTAKE_PARTIAL_BUDGET")
+        self.assertEqual(total_written, 500)
+        self.assertEqual(len(api.comments), 500)
+        self.assertEqual(MODULE.reconcile(api, 99, MAIN_SHA)["missing_requests"], [])
+
+    def test_4500_history_and_500_prs_fit_budget_with_60_writes(self):
+        api = FakeAPI([pr(1000 + i) for i in range(500)])
+        api.comments = [
+            {"id": i + 1, "body": "non-authoritative", "user": {"login": "other"}}
+            for i in range(4500)
+        ]
+        outcome = MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(outcome["state"], "INTAKE_PARTIAL_BUDGET")
+        self.assertEqual(outcome["new_intents_verified"], 60)
+        self.assertEqual(outcome["remaining_candidates"], 440)
+        self.assertEqual(api.request_count, 404)
+        self.assertEqual(api.posts, 60)
+
+    def test_low_reported_rate_limit_defers_writes(self):
+        api = FakeAPI()
+        api.rate_remaining = MODULE.MIN_GITHUB_RATE_REMAINING + 4
+        outcome = MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(outcome["state"], "INTAKE_PARTIAL_BUDGET")
+        self.assertEqual(outcome["new_intents_verified"], 0)
+        self.assertEqual(outcome["remaining_candidates"], 1)
+        self.assertEqual(api.posts, 0)
+
+    def test_request_hard_budget_fails_closed(self):
+        api = MODULE.GitHubAPI("test-token-not-real")
+        api.request_count = MODULE.MAX_API_CALLS_PER_RUN
+        with self.assertRaisesRegex(MODULE.ClosedGate, "API_BUDGET_EXHAUSTED"):
+            api.request("GET", "/issues/99")
+
+    def test_scan_keeps_full_prewrite_revalidation_after_cached_discovery(self):
+        api = FakeAPI([pr(17), pr(18, SHA_B), pr(19, "d" * 40)])
+        MODULE.ingest(api, 99, MAIN_SHA, None)
+        self.assertEqual(api.control_reads, 4)
+        self.assertEqual(api.inbox_issue_reads, 4)
+        self.assertEqual(api.direct_readbacks, 3)
+
     def test_request_identity_does_not_depend_on_main_or_run(self):
         first = MODULE.make_intent(pr(), MAIN_SHA)
         second = MODULE.make_intent(pr(), SHA_B)
@@ -168,7 +223,7 @@ class InboxTests(unittest.TestCase):
         self.assertEqual(api.posts, 3)
         self.assertEqual(api.inbox_scans, 1)
         self.assertEqual(api.direct_readbacks, 3)
-        self.assertEqual(api.control_reads, 6)
+        self.assertEqual(api.control_reads, 4)
 
     def test_control_is_rechecked_before_post(self):
         api = FakeAPI()
@@ -187,7 +242,7 @@ class InboxTests(unittest.TestCase):
             nonlocal reads
             if method == "GET" and endpoint == "/pulls/17":
                 reads += 1
-                if reads == 2:
+                if reads == 1:
                     return pr(17, "d" * 40)
             return original(method, endpoint, data)
 
@@ -209,7 +264,7 @@ class InboxTests(unittest.TestCase):
             nonlocal reads
             if method == "GET" and endpoint == "/pulls/17":
                 reads += 1
-                if reads == 2:
+                if reads == 1:
                     return pr(17, body="ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: invalid")
             return original(method, endpoint, data)
 
@@ -248,7 +303,7 @@ class InboxTests(unittest.TestCase):
             nonlocal reads
             if method == "GET" and endpoint == "/pulls/17":
                 reads += 1
-                if reads == 2:
+                if reads == 1:
                     raise MODULE.ClosedGate("GITHUB_API_UNCERTAIN")
             return original(method, endpoint, data)
 
