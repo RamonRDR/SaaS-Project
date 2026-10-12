@@ -258,10 +258,12 @@ class InboxTests(unittest.TestCase):
         self.assertEqual(api.posts, 0)
 
     def test_scheduled_scan_skips_revoked_control_and_keeps_others(self):
-        api = FakeAPI([
-            pr(17),
-            pr(18, SHA_B, "ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 2\n"),
-        ])
+        api = FakeAPI(
+            [
+                pr(17),
+                pr(18, SHA_B, "ORCHESTRATOR_MODE: A\nCONTROL_ISSUE: 2\n"),
+            ]
+        )
         original = api.request
         control_one_reads = 0
 
