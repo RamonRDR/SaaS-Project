@@ -3,4 +3,4 @@
 
 def is_valid_wakeup(message: str) -> bool:
     """Aceita apenas o conteúdo completo e exato autorizado para o canary."""
-    return message == "MODE_A_DEV_CANARY_TEST_20261013"
+    return type(message) is str and message == "MODE_A_DEV_CANARY_TEST_20261013"
