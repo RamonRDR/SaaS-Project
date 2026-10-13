@@ -69,7 +69,7 @@ A SDD-0001 v1.6 **exclui o Work como componente obrigatório**, logo uma mudanç
 
 **Desvantagens:** dependência da disponibilidade/quotas do Work, capacidades de triggers e permissões de conector sujeitas a alteração, ausência de garantia transacional para entrega de eventos.
 
-**Riscos:** prompts não criam isolamento técnico; um conector de escrita pode alcançar outros paths ou a `main`. Consulta à API de rulesets do repositório em 13/10/2026 retornou `[]`; consulta de branch protection tradicional retornou 403 ao conector, portanto a proteção efetiva da `main` **não foi comprovada**. Na ausência de proteção técnica verificável, o piloto no repositório principal fica bloqueado; avaliar conta/conexão separada e repositório sandbox com escopo de escrita reduzido. Coalescência e limitações podem deixar estados pendentes. O GitHub Actions **não controla a execução interna do Work**.
+**Riscos:** prompts não criam isolamento técnico; um conector de escrita pode alcançar outros paths ou a `main`. Na primeira consulta, o repositório não tinha ruleset; **posteriormente foi criado e verificado** `main-protection` ID 25036481, ativo, sem bypass, exigindo PR e checks. Mesmo assim, o Work conectado à identidade do proprietário ainda representa um risco de escrita no principal e de autorização forjada. O desenho exige **identidade distinta limitada ao sandbox**; sem teste de isolamento, piloto bloqueado. Coalescência e limitações podem deixar estados pendentes. O GitHub Actions **não controla a execução interna do Work**.
 
 **Impacto operacional / migração:** nova SDD/ADR, conexão Work segregada com permissão apenas no sandbox, `ScopeGrantReceipt` e `MergeGrantReceipt` via ação humana trusted, publicador read-only sobre candidato + writer restrito ao principal, PostgreSQL transacional com fencing e canaries negativos. Sem M1/M2b aprovados, piloto mutável proibido.
 
@@ -89,7 +89,7 @@ A SDD-0001 v1.6 **exclui o Work como componente obrigatório**, logo uma mudanç
 
 - **Opção:** B, **piloto supervisionado**, sujeito a gates ainda pendentes.
 - **Justificativa:** único caminho com execução de IA já demonstrada sem integrar API paga, preservando Github Actions como fonte independente de evidência. A recomendação **não** considera as três provas suficientes para produção.
-- **Limite de confiança:** Work tem permissão lógica para **propor código**, jamais autoridade para elevar privilégios ou transformar resultado textual em aceite humano. Sua credencial pode ter poderes GitHub maiores do que a política declarada, por isso o uso no repositório principal exige primeiro controles técnicos efetivos. Qualquer comentário, inclusive sob o login do proprietário, é insuficiente para aprovar escopo, risco ou merge. Contratos externos não comprovados impõem `BLOCKED_EXTERNAL` / `HUMAN_DECISION_REQUIRED`.
+- **Limite de confiança:** Work somente poderá escrever no sandbox, jamais no principal; seus candidatos serão importados exclusivamente pelo publisher trusted sob escopo verificável. A conexão atual do proprietário ainda exige revogação/segregação antes do piloto. Qualquer comentário, inclusive sob o login do proprietário, é insuficiente para aprovar escopo, risco ou merge. Contratos externos não comprovados impõem `BLOCKED_EXTERNAL` / `HUMAN_DECISION_REQUIRED`.
 
 ## 6. Consequências
 
@@ -170,7 +170,7 @@ A tabela não simula pareceres executados; somente os identifica para revisão.
 - **R1 (implantação bloqueada):** `main` agora tem ruleset ativo ID 25036481, porém a identidade atual usada pelo Work ainda pode ter acesso amplo. Separação escolhida: **remover escrita do Work no principal e usar credencial segregada/sandbox**; isso ainda exige configuração e teste humano de permissões.
 - **R2:** evento Work perdido/coalescido ou tarefa pausada/excesso de franquia: backlog observado read-only, operador humano responsável pela retomada se não houver API/gatilho comprovado; não assumir auto-resume.
 - **R3:** CODEX-01 e receipts humanos estão especificados no contrato, mas não implementados/testados; work login/issue comments continuam sem prova de origem humana.
-- **R4:** latência e quotas de Work não verificadas para a carga prevista; nenhum SLA assumido.
+- **R4:** latência e quotas Work não verificadas para a carga prevista; nenhum SLA assumido. Uma instância PostgreSQL ainda precisa de aprovação de fornecedor/infra, sem custo contratado por esta proposta.
 - **R5:** publisher/DB com writer único e fencing definidos para a arquitetura, mas sem instância aprovada, implementação ou teste de duas execuções; `M3` bloqueado até M2b `PASS`.
 - **R6:** migração do contrato financeiro existente para arquitetura sem API precisa de matriz de BR/EDGE/AC, sem apagar invariantes de gasto.
 - **R7:** especificação incompleta de fluxos de fork. Bloquear mutação automática em fork.
