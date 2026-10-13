@@ -5,13 +5,13 @@
 - **ID:** ADR-0015
 - **Título:** Desenvolvimento orquestrado pelo Work com enforcement no GitHub
 - **Status:** Proposed
-- **Revisão decisória:** 3
+- **Revisão decisória:** 4
 - **Data de criação:** 2026-10-13
 - **Última atualização:** 2026-10-13
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead (pendente de parecer formal)
 - **Responsável humano pelo aceite:** responsável pelo repositório
-- **SDDs relacionadas:** SDD-0002 v0.3 (candidata); SDD-0001 v1.6 (Approved, vigente)
+- **SDDs relacionadas:** SDD-0002 v0.4 (candidata); SDD-0001 v1.6 (Approved, vigente)
 - **ADRs relacionadas:** ADR-0014 rev.5 (Accepted, vigente); ADR-0010 (Accepted); ADR-0013 rev.1 (Superseded)
 - **PR / issue relacionada:** Issues #1, #8 e #10; PRs experimentais #7 e #9; pareceres rev.1 no PR #11
 
@@ -40,7 +40,7 @@ A SDD-0001 v1.6 **exclui o Work como componente obrigatório**, logo uma mudanç
 1. `main` protegida; **nenhum merge principal sem `ORCHESTRATOR_READY`, `MERGE_ALLOWED` e autorização humana posterior vinculada ao mesmo PR/HEAD**.
 2. SDD-0001 v1.6 e ADR-0014 rev.5 permanecem vigentes até os gates de sucessão. Não reescrever decisões aceitas.
 3. **Work não recebe acesso de escrita ao repositório principal.** A opção B passa a exigir sandbox separado, conexão GitHub com identidade segregada e sem escrita/admin em `RamonRDR/SaaS-Project`; o publicador confiável da `main` recebe somente candidatos não confiáveis e os valida **antes** de publicar. Se a segregação efetiva não for possível, bloquear o piloto.
-4. **Um comentário GitHub NÃO comprova ação humana.** Escopo e merge exigem `ScopeGrantReceipt v1` / `MergeGrantReceipt v1` derivados de `workflow_dispatch` confiável na `main`, iniciado por identidade humana **não delegada ao Work**, com run ID, workflow e HEAD trusted, alvo, versão, expiração e comparação readback. Merge exige receipt posterior ao `ORCHESTRATOR_READY`; somente um job trusted pode registrar `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION`.
+4. **Concessão de trabalho é diferente de autorização de merge.** `ScopeGrantReceipt v1` de `workflow_dispatch` trusted da `main` por identidade não delegada ao Work permite somente operações reversíveis delimitadas. O merge segue exclusivamente a regra 31 do `AGENTS.md`: comentário manual `HUMAN_MERGE_AUTHORIZATION` após READY no mesmo PR/HEAD, ou `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION` somente quando a decisão humana ocorreu no canal interativo do Orquestrador externo ao GitHub. Nunca converter `workflow_dispatch` em autorização de merge.
 5. Alterações em `.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/specs/**`, `docs/adr/**`, `docs/engineering/**` e `docs/PROJECT_STATUS.md` são **control plane**, fora da remediação autônoma. Mudanças documentais como este PR seguem review e aprovação humanos.
 6. **Sem `OPENAI_API_KEY`**, sem endpoint de inferência de IA paga, sem purchase/upgrade automático, sem fallback de cobrança. Uso de Work/Codex está sujeito ao plano e seus limites, que não equivalem a SLA nem API contratada.
 7. `CODEX-01` independente revisa HEAD final e mudanças vinculadas por `merge_base_sha`, `payload_digest`, `trusted_review_contract_digest` completo da `main` e `review_context_fingerprint`; revalidar os três antes de READY, mesmo sem mudança de HEAD. Evidência divergente fica inválida, e piloto nunca usa API paga.
@@ -71,7 +71,7 @@ A SDD-0001 v1.6 **exclui o Work como componente obrigatório**, logo uma mudanç
 
 **Riscos:** prompts não criam isolamento técnico; um conector de escrita pode alcançar outros paths ou a `main`. Na primeira consulta, o repositório não tinha ruleset; **posteriormente foi criado e verificado** `main-protection` ID 25036481, ativo, sem bypass, exigindo PR e checks. Mesmo assim, o Work conectado à identidade do proprietário ainda representa um risco de escrita no principal e de autorização forjada. O desenho exige **identidade distinta limitada ao sandbox**; sem teste de isolamento, piloto bloqueado. Coalescência e limitações podem deixar estados pendentes. O GitHub Actions **não controla a execução interna do Work**.
 
-**Impacto operacional / migração:** nova SDD/ADR, conexão Work segregada com permissão apenas no sandbox, `ScopeGrantReceipt` e `MergeGrantReceipt` via ação humana trusted, publicador read-only sobre candidato + writer restrito ao principal, PostgreSQL transacional com fencing e canaries negativos. Sem M1/M2b aprovados, piloto mutável proibido.
+**Impacto operacional / migração:** nova SDD/ADR, conexão Work limitada ao sandbox, `ScopeGrantReceipt` para trabalho, **merge nos canais existentes de AGENTS.md**, publicador trusted no principal e PostgreSQL com lock de cota por receipt, owner/fencing e testes negativos. Sem M1/M2b comprovados, piloto mutável proibido.
 
 ### C. Work como autoridade completa, com merge/CI autodeclarados (rejeitada)
 
@@ -117,15 +117,15 @@ Apenas engenharia; nenhum dado tenant-owned é manipulado. **Trust boundary esco
 ## 8. Impacto em dados e API
 
 - **Banco do SaaS:** não aplicável; sem migration de produto.
-- **GitHub:** PR, receipts de `workflow_dispatch` trusted, checks/status por SHA, publicador em `main` e comentários de auditoria; comentários não são autorização nem CAS.
+- **GitHub:** PR, `ScopeGrantReceipt` para escopo técnico via dispatch trusted, checks/status por SHA e publicador na `main`. O merge usa somente `HUMAN_MERGE_AUTHORIZATION` manual ou decisão interativa externa registrada por `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION` conforme AGENTS.md; comentário do Work não é autorização nem CAS.
 - **Work:** assinaturas de eventos dependem de configuração e franquia; conexão com identidade isolada apenas no sandbox. GitHub Actions não tem garantia de acordá-lo após evento perdido.
 - **OpenAI API paga:** ausente. O ledger financeiro e claim da ADR-0014 ficam **inativos, não apagados**, até sucessão formal e definição do modo de fallback.
-- **Estado durable/exclusão:** PostgreSQL **transacional** escolhido para o desenho, sem fornecedor/instância aprovada ou provisionada. `UNIQUE(operation_key)`, `SELECT FOR UPDATE`, `fencing_epoch`, lease e readback ambíguo; somente writer trusted recebe credencial. Git refs e Actions concurrency NÃO substituem exclusão. Sem DB/serialização testada, só observador read-only e **nenhum** piloto mutável.
+- **Estado durável/exclusão e cota:** PostgreSQL transacional escolhido, ainda sem infraestrutura aprovada. Linha `scope_receipts(scope_receipt_run_id PRIMARY KEY, max_operations, consumed_operations)` bloqueada por `SELECT FOR UPDATE` antes de admitir operação nova; mesma transação reserva uma unidade de cota e registra `work_operations(operation_key PRIMARY KEY)`. Chaves de operação diferentes com mesmo receipt disputam cota compartilhada; reentrada da mesma operação não consome novamente. Owner/fencing/lease e readback protegem publicação. Sem teste de disputa por receipt além da operation_key, nenhum M3 mutável.
 - Alterações de schemas existentes exigiriam versionamento explícito e outra revisão técnica.
 
 ## 9. Impacto operacional e observabilidade
 
-**Autorização versus wake-up:** o canal escolhido é `workflow_dispatch` humano-only na `main` do principal, com receipts `ScopeGrantReceipt v1` e `MergeGrantReceipt v1`; a identidade humana não fica conectada ao Work. Apenas trusted job transforma autorização posterior ao READY em `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION`. O comentário GitHub é somente sinal não confiável. **Leitura e retomada:** um scanner trusted e read-only pode identificar uma operação pendente; se não houver wake-up automatizado suportado, só um operador humano religará/acionará a tarefa. Não declarar auto-healing por haver scanner.
+**Autorização versus wake-up:** o `workflow_dispatch` humano-only da `main` concede exclusivamente `ScopeGrantReceipt v1` para trabalho. Para MERGE-01: autorização humana manual `HUMAN_MERGE_AUTHORIZATION` no PR/HEAD após READY, ou decisão explicitamente tomada no canal interativo do Orquestrador, registrada como `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION`; dispatch não é esse canal. O comentário GitHub recebido para wake-up não é instrução. Scanner read-only identifica pendências; sem gatilho suportado, operador humano retoma Work.
 
 Eventos essenciais: `TASK_OBSERVED`, `WORK_PENDING`, `CI_PENDING`, `CI_FAILED`, `CI_PASSED`, `WAITING_CODEX`, `READY_FOR_HUMAN_MERGE`, `BLOCKED_EXTERNAL`, `LOOP_ESCALATION_REQUIRED`, `HUMAN_DECISION_REQUIRED`. Evidências devem identificar `repo`, `pr`, `head_sha`, `source`, `control_issue`, timestamp e resultado de cada gate. Logs e comentários excluem secrets, tokens, dados de clientes e payload não confiável. Observador GitHub read-only verifica pendências em vez de inferir que a tarefa executou. Tempo limite e escalada são definidos na SDD-0002 e na implantação.
 
@@ -169,9 +169,9 @@ A tabela não simula pareceres executados; somente os identifica para revisão.
 
 - **R1 (implantação bloqueada):** `main` agora tem ruleset ativo ID 25036481, porém a identidade atual usada pelo Work ainda pode ter acesso amplo. Separação escolhida: **remover escrita do Work no principal e usar credencial segregada/sandbox**; isso ainda exige configuração e teste humano de permissões.
 - **R2:** evento Work perdido/coalescido ou tarefa pausada/excesso de franquia: backlog observado read-only, operador humano responsável pela retomada se não houver API/gatilho comprovado; não assumir auto-resume.
-- **R3:** CODEX-01 e receipts humanos estão especificados no contrato, mas não implementados/testados; work login/issue comments continuam sem prova de origem humana.
+- **R3:** CODEX-01 e receipts de escopo estão especificados, não implementados/testados. O merge permanece nos dois canais já aceitos por AGENTS.md, sem criar terceiro canal via dispatch.
 - **R4:** latência e quotas Work não verificadas para a carga prevista; nenhum SLA assumido. Uma instância PostgreSQL ainda precisa de aprovação de fornecedor/infra, sem custo contratado por esta proposta.
-- **R5:** publisher/DB com writer único e fencing definidos para a arquitetura, mas sem instância aprovada, implementação ou teste de duas execuções; `M3` bloqueado até M2b `PASS`.
+- **R5:** publisher/DB com owner/fencing e consumo de cota transacional por receipt estão especificados, mas sem implantação. M3 bloqueado até M2b comprovar disputa na mesma operation_key e entre operation_keys diferentes com max_operations=1.
 - **R6:** migração do contrato financeiro existente para arquitetura sem API precisa de matriz de BR/EDGE/AC, sem apagar invariantes de gasto.
 - **R7:** especificação incompleta de fluxos de fork. Bloquear mutação automática em fork.
 
@@ -184,6 +184,7 @@ A tabela não simula pareceres executados; somente os identifica para revisão.
 | 2026-10-13 | Product & SDD | Proposta inicial após 3 canaries e autorização para elaborar | Proposed rev.1 |
 | 2026-10-13 | Orchestrator / Tech Lead | Ajustes materiais após review-adr rev.1 (permissões, provenance humano, separação de gates) | Proposed rev.2 |
 | 2026-10-13 | Orchestrator / Tech Lead | Rev.3: trust boundary de sandbox, receipts humanos, publisher pré-escrita, PostgreSQL/fencing e fingerprint CODEX-01 | Proposed rev.3 |
+| 2026-10-13 | Orchestrator / Tech Lead | Rev.4: separar ScopeGrant de MERGE-01 vigente e controlar cota entre chaves de operação diferentes | Proposed rev.4 |
 
 ## 16. Revisão técnica
 
