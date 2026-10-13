@@ -9,6 +9,14 @@ class WakeupValidationTests(unittest.TestCase):
     def test_exact_marker_is_valid(self):
         self.assertTrue(is_valid_wakeup("MODE_A_DEV_CANARY_TEST_20261013"))
 
+    def test_string_subclass_with_overridden_equality_is_invalid(self):
+        class AlwaysEqualString(str):
+            def __eq__(self, other):
+                return True
+
+        message = AlwaysEqualString("INVALID_MARKER")
+        self.assertFalse(is_valid_wakeup(message))
+
     def test_different_letters_are_invalid(self):
         for message in (
             "mode_a_dev_canary_test_20261013",
