@@ -36,7 +36,7 @@ Entregar um **piloto verificável de autonomia supervisionada**, com Work criand
 
 - Contrato de tarefa Work acionada por atividade suportada no GitHub, com wake-up idempotente, fontes atuais e identificação humana.
 - Estados, eventos, observabilidade, reconciliação read-only e timeout definidos.
-- Desenvolvimento/correção de **PR same-repo** previamente autorizado, em branch isolada, sem permissões privilegiadas a partir de fork.
+- Desenvolvimento Work em **sandbox separado** (identidade limitada) e publicação confiável em PR same-repo do principal somente após validação de manifesto, grant humano e exclusão durável; forks não recebem privilégios.
 - GitHub Actions como CI independente e verificador de escopo/segurança; provar permissões efetivas, proteção de `main` e consequências de bypass.
 - CODEX-01 independente, no HEAD congelado, e gate de aprovação humana antes do merge.
 - Testes positivos/negativos de evento, concorrência, integridade, perda de evento, revisão atrasada, anti-loop e bloqueio.
@@ -170,7 +170,7 @@ Para cada execução, registrar em canal auditável: `correlation_id` imutável 
 | EDGE-023 | Estado de checkpoint parcialmente gravado | Reconsulta autoritativa, sem pular operações |
 | EDGE-024 | Work solicita créditos/cobrança | Não comprar, não chamar endpoint pago, `BLOCKED_EXTERNAL` |
 | EDGE-025 | Comentário via conector aparece como proprietário | Não inferir autorização humana por login; exigir ato independente |
-| EDGE-026 | `rulesets=[]` e branch protection indisponível | Bloquear Work no repo principal até prova de proteção ou sandbox isolado |
+| EDGE-026 | Ruleset da main ativo, mas Work ainda conectado ao proprietário | Bloquear Work até revogar escrita/admin no principal e provar isolamento do sandbox |
 | EDGE-027 | Reconciler detecta trigger não entregue | Registrar pendência; intervenção humana caso não exista reativação programática suportada |
 | EDGE-028 | Diff sandbox toca `.github/**` antes de publicar | Publisher rejeita patch inteiro pré-escrita e escala decisão humana |
 | EDGE-029 | Reviewer muda contrato trusted sem HEAD mudar | Invalidar CODEX-01 pelo fingerprint, bloquear READY |
@@ -226,7 +226,7 @@ Para cada execução, registrar em canal auditável: `correlation_id` imutável 
 
 - **AC-001 (gate documental):** a arquitetura define explicitamente o controle de escopo/autorização, o mecanismo de proteção da `main` ou sandbox isolado, recuperação de falhas e o fallback bloqueado; depois obtém parecer favorável de `review-adr`/`review-sdd` e aceite/aprovação humanos **específicos**, sem simular resultados de implantação. Sem esse gate documental, nem iniciar implementação sob novo contrato.
 - **AC-002 (gate de ativação):** tarefa Work com escopo/repo/evento/contrato/verificação humana independente, configuração conferida e credencial com alcance realmente isolado. Login de comentário não comprova autorização. Qualquer privilégio de escrita amplo não mitigado bloqueia.
-- **AC-003:** o mesmo gatilho repetido não cria duplicata de PR/commit/relatório; demonstrar duas execuções e reentrada após timeout.
+- **AC-003:** gatilho repetido pode criar atividade no sandbox, porém publisher e estado transacional aceitam apenas uma operação/PR/commit no principal por `operation_key`; testar dois runners, lease/epoch, transporte ambíguo e reentrada idempotente antes do piloto.
 - **AC-004:** três execuções independentes chegam a `CI_PASSED`, `CODEX-01` no HEAD exato e `READY_FOR_HUMAN_MERGE` sem merge e sem pedido de continuação.
 - **AC-005 (gate de ativação):** Work só pode escrever em sandbox segregado; publisher trusted rejeita **antes de gravar blob/commit/ref** o changeset inteiro contendo control plane, symlink/submodule/path ambíguo ou fora da allowlist, transicionando `HUMAN_DECISION_REQUIRED`. CI no principal nega também merge; testar negativa do publisher e tentativa de escrita Work direta no principal.
 - **AC-006 (gate de ativação):** falha de evento/tarefa/quota detectada pelo observador GitHub read-only e marcada `BLOCKED_EXTERNAL` dentro de uma janela estabelecida após medição; sem compra automática de créditos nem suposição de retomada automática sem endpoint/gatilho confirmado.
@@ -254,7 +254,7 @@ Para cada execução, registrar em canal auditável: `correlation_id` imutável 
 
 ## 21. Dependências
 
-- ADR-0015 rev.2 em `Proposed`, revisão `review-adr` e aceite humano antes de se tornar vigente.
+- ADR-0015 rev.3 em `Proposed`, revisão `review-adr` e aceite humano antes de se tornar vigente.
 - SDD-0001 v1.6 e ADR-0014 rev.5 continuam vigentes até sucessão formal.
 - GitHub Actions, permissões/rulesets verificáveis, tarefa Work e recursos disponíveis na assinatura.
 - Suporte real a trigger de comentário PR, revisões independentes CODEX-01, branch de teste.
