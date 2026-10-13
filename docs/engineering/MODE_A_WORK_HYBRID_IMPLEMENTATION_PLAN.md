@@ -3,7 +3,7 @@
 **Data:** 2026-10-13  
 **Status:** PROPOSTA, não aprovada para execução produtiva.  
 **Rastreabilidade:** [Issue #10](https://github.com/RamonRDR/SaaS-Project/issues/10), [Issue #8](https://github.com/RamonRDR/SaaS-Project/issues/8), [Issue #1](https://github.com/RamonRDR/SaaS-Project/issues/1).  
-**Contratos propostos:** [ADR-0015](../adr/ADR-0015-work-orchestrated-development.md) rev.1 `Proposed`; [SDD-0002](../specs/SDD-0002-mode-a-work-orchestrated.md) v0.1 `In Review`.  
+**Contratos propostos:** [ADR-0015](../adr/ADR-0015-work-orchestrated-development.md) rev.2 `Proposed`; [SDD-0002](../specs/SDD-0002-mode-a-work-orchestrated.md) v0.2 `In Review`.  
 **Contratos vigentes:** SDD-0001 v1.6 `Approved`, ADR-0014 rev.5 `Accepted`, AGENTS.md e CI_GATES.md. Sem merge/ativação/API paga.
 
 ## 1. Objetivo operacional
@@ -24,11 +24,11 @@ As tarefas temporárias C1/C2/C3 foram desativadas pelo responsável e **não s�
 
 ### D1. Limite de credencial e arquivos sensíveis
 
-É proibido confundir `allowlist` no prompt com controle de escrita efetivo. Definir como impedir que a identidade Work faça commit/merge direto na `main`; apresentar evidência de branch protection/ruleset, reviews obrigatórios e status checks. Adicionar gate GitHub de diff para negar mudanças de control plane produzidas por automação, em execução confiável, com testes negativos. **Um gate de PR impede integração, mas não necessariamente edição de uma branch**: comprovar âmbito do token/conector, ou restringir piloto a repo sandbox até existir isolamento suficiente.
+É proibido confundir `allowlist` no prompt com controle de escrita efetivo. Definir como impedir que a identidade Work faça commit/merge direto na `main`; apresentar evidência de branch protection/ruleset, reviews obrigatórios e status checks. Adicionar gate GitHub de diff para negar mudanças de control plane produzidas por automação, em execução confiável, com testes negativos. **Um gate de PR impede integração, mas não necessariamente edição de uma branch**: a API retornou `rulesets=[]` e a proteção tradicional da `main` negou consulta ao conector (403). Um administrador deve verificar proteção real e capacidade de bypass. Na ausência de prova de restrição de push direto/conta, usar conexão e repositório sandbox efetivamente segregados, sem acesso de escrita à `main` principal; senão, bloquear piloto.
 
 ### D2. Eventos e recuperação
 
-Eventos de comentário acionam Work quando a tarefa está habilitada, mas não há prova de entrega permanente, ordenação ou exactly-once. Read-only reconciler GitHub identifica pendência e atraso; não inventar integração para religar tarefa. Se não houver mecanismo automático oficial comprovado, declarar `BLOCKED_EXTERNAL` e acionar operador humano fora do caminho saudável. Especificar janela de monitoração e resposta **após medir dados reais**, não SLA artificial.
+Eventos de comentário são wake-ups não confiáveis, **nunca comprovação de autorização humana**, inclusive quando publicados sob o login da conta proprietária pelo conector. Autorizações de escopo, riscos e merge exigem registro independente do agente, com proveniência e validade. Eventos acionam Work quando a tarefa está habilitada, mas não há prova de entrega permanente, ordenação ou exactly-once. Read-only reconciler GitHub identifica pendência e atraso; não inventar integração para religar tarefa. Se não houver mecanismo automático oficial comprovado, declarar `BLOCKED_EXTERNAL` e acionar operador humano fora do caminho saudável. Especificar janela de monitoração e resposta **após medir dados reais**, não SLA artificial.
 
 ### D3. Quota e custos
 
@@ -50,8 +50,8 @@ Definir schema de checkpoints com versão, `operation_key`, `expected_head_sha`,
 
 | Marco | Entrega concreta | Dono/execução | Critério de saída | Gate |
 | --- | --- | --- | --- | --- |
-| M0: documentação | ADR-0015 `Proposed`, SDD-0002 `In Review`, DE/PARA, links e plano | Product & SDD | CI documental + pareceres formais, sem falsas aprovações | `HUMAN_DECISION_REQUIRED` |
-| M1: perímetro de confiança | Inventário permissões Work/GitHub, ruleset/proteção main, gate de paths protegido em CI | Security + Platform, PR próprio | Canary negativo impede integração proibida; não há token Work privilegiado sem mitigação | `HUMAN_DECISION_REQUIRED` se capacidade não existir |
+| M0: documentação | ADR-0015 rev.2 `Proposed`, SDD-0002 v0.2 `In Review`, DE/PARA, links e plano | Product & SDD | CI documental + pareceres formais, sem falsas aprovações | `HUMAN_DECISION_REQUIRED` |
+| M1: perímetro de confiança | Inventário de permissão, proteção real de push direto em main (ou sandbox segregado), e gate de paths protegido em CI; provar autorização humana fora do comentário GitHub | Security + Platform, PR próprio | Canary negativo impede integração proibida; não há token Work privilegiado sem mitigação | `HUMAN_DECISION_REQUIRED` se capacidade não existir |
 | M2: observador seguro | Scanner/read-only para PR/HEAD/checks/pending e métricas, schema idempotente versionado | Actions, PR técnico | Reprocessa duplicata/stale/ACK incerto, nunca publica código ou chama IA | CI + CODEX-01 antes do merge |
 | M3: piloto same-repo | Nova tarefa Work supervisionada com uma família de PR/issue; contrato estrito e versionado | Humano ativa; Work executa branch | 3 ciclos reais com CI, CODEX-01 do HEAD, `READY_FOR_HUMAN_MERGE`, nenhum merge | Gates técnicos + humano |
 | M4: segurança e resiliência | Event loss, quota, desconexão, forks hostis, loop, concorrência, control plane, rollback | QA/Security/Platform | Matriz E2E verde e incidentes reportados corretamente; sem bypass | `HUMAN_DECISION_REQUIRED` em falha |
@@ -117,7 +117,7 @@ Não aplicar SLO numérico antes de medir pelo menos o piloto M3/M4 e confirmar 
 
 ## 8. Responsabilidades humanas mínimas
 
-- Aprovar ADR-0015 e SDD-0002 separadamente, **após pareceres favoráveis**.
+- Decidir desenho de autorização independente e perímetro técnico; aprovar ADR-0015 e SDD-0002 separadamente, **após pareceres favoráveis**. As provas de implementação são gates posteriores de ativação, não pré-condições circulares para aprovação documental.
 - Inspecionar permissões do conector, rulesets, tarefas em Work e qualquer alerta de gasto.
 - Intervir apenas em `HUMAN_DECISION_REQUIRED`, `LOOP_ESCALATION_REQUIRED`, `BLOCKED_EXTERNAL` e `READY_FOR_HUMAN_MERGE`.
 - Autorizar cada merge principal com PR/HEAD inequívocos; não dar consentimento genérico antecipado.
