@@ -3,7 +3,7 @@
 **Data:** 2026-10-13  
 **Status:** PROPOSTA, não aprovada para execução produtiva.  
 **Rastreabilidade:** [Issue #10](https://github.com/RamonRDR/SaaS-Project/issues/10), [Issue #8](https://github.com/RamonRDR/SaaS-Project/issues/8), [Issue #1](https://github.com/RamonRDR/SaaS-Project/issues/1).  
-**Contratos propostos:** [ADR-0015](../adr/ADR-0015-work-orchestrated-development.md) rev.2 `Proposed`; [SDD-0002](../specs/SDD-0002-mode-a-work-orchestrated.md) v0.2 `In Review`.  
+**Contratos propostos:** [ADR-0015](../adr/ADR-0015-work-orchestrated-development.md) rev.3 `Proposed`; [SDD-0002](../specs/SDD-0002-mode-a-work-orchestrated.md) v0.3 `In Review`.  
 **Contratos vigentes:** SDD-0001 v1.6 `Approved`, ADR-0014 rev.5 `Accepted`, AGENTS.md e CI_GATES.md. Sem merge/ativação/API paga.
 
 ## 1. Objetivo operacional
@@ -22,13 +22,17 @@ As tarefas temporárias C1/C2/C3 foram desativadas pelo responsável e **não s�
 
 ## 3. Critérios de desenho e decisões bloqueantes
 
+**Contrato técnico normativo:** [MODE_A_WORK_HYBRID_TRUST_CONTRACT.md](./MODE_A_WORK_HYBRID_TRUST_CONTRACT.md). Este documento especifica identidades, receipts humanos, publisher pré-escrita, PostgreSQL transacional/fencing e fingerprint completo do CODEX-01. **Não está implementado.**
+
 ### D1. Limite de credencial e arquivos sensíveis
 
-É proibido confundir `allowlist` no prompt com controle de escrita efetivo. Definir como impedir que a identidade Work faça commit/merge direto na `main`; apresentar evidência de branch protection/ruleset, reviews obrigatórios e status checks. Adicionar gate GitHub de diff para negar mudanças de control plane produzidas por automação, em execução confiável, com testes negativos. **Um gate de PR impede integração, mas não necessariamente edição de uma branch**: a API retornou `rulesets=[]` e a proteção tradicional da `main` negou consulta ao conector (403). Um administrador deve verificar proteção real e capacidade de bypass. Na ausência de prova de restrição de push direto/conta, usar conexão e repositório sandbox efetivamente segregados, sem acesso de escrita à `main` principal; senão, bloquear piloto.
+A identidade Work deverá ser segregada, com **acesso de escrita somente a sandbox de trabalho** e nenhuma escrita/admin em `RamonRDR/SaaS-Project`; a conexão atual do proprietário ao Work no principal será revogada antes de habilitar piloto. O ruleset `main-protection` ID 25036481 foi verificado `active`, sem bypass, com PR obrigatório e checks `governance`/`secret-scan`; **zero aprovações obrigatórias** não equivale a gate humano. Publicador da `main` revalida `ScopeGrantReceipt`, manifest inteiro e denies/allowlist **antes de gravar qualquer blob/commit/ref/PR** no principal. Mudança `.github/**`, `.ai/**`, governança, symlink, submodule ou path inválido rejeita **patch inteiro pré-escrita**, gerando `HUMAN_DECISION_REQUIRED`. Sem identidade segregada, não ativar Work.
 
 ### D2. Eventos e recuperação
 
-Eventos de comentário são wake-ups não confiáveis, **nunca comprovação de autorização humana**, inclusive quando publicados sob o login da conta proprietária pelo conector. Autorizações de escopo, riscos e merge exigem registro independente do agente, com proveniência e validade. Eventos acionam Work quando a tarefa está habilitada, mas não há prova de entrega permanente, ordenação ou exactly-once. Read-only reconciler GitHub identifica pendência e atraso; não inventar integração para religar tarefa. Se não houver mecanismo automático oficial comprovado, declarar `BLOCKED_EXTERNAL` e acionar operador humano fora do caminho saudável. Especificar janela de monitoração e resposta **após medir dados reais**, não SLA artificial.
+Eventos e comentários são exclusivamente wake-up. A identidade GitHub do proprietário pode aparecer em comentários feitos pelo conector Work; não comprova autorização humana. **Canal escolhido:** `ScopeGrantReceipt v1` e `MergeGrantReceipt v1` produzidos por `workflow_dispatch` trusted na `main` por **identidade humana sem credencial disponível ao Work**. Receipts validam ator, run ID, workflow/ref/SHA, escopo, paths, contrato, expiração e PR/HEAD. `MergeGrantReceipt` requer READY anterior e ordem READY → autorização → merge; só trusted job registra `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION`.
+
+Read-only reconciler observa backlog e estados, não pode acordar Work sem suporte comprovado. Falta de evento/serviço/limite → `BLOCKED_EXTERNAL` e retomada humana; não inventar SLA.
 
 ### D3. Quota e custos
 
@@ -36,11 +40,11 @@ Sem `OPENAI_API_KEY`, sem HTTP de inferência paga e sem cobrança adicional aut
 
 ### D4. Revisor independente
 
-Work/autor nunca produz `CODEX-01 PASS` por conta própria; validar comentário/review do Codex independente, SHA exato, estado de conclusão, findings e CI. Após HEAD novo, descartar evidência anterior. Reconhecer indisponibilidade do review como bloqueio, não autorização implícita.
+CODEX-01 deve ser independente do autor Work e carregar `merge_base_sha`, `head_sha`, `payload_digest` completo do changeset `merge-base→HEAD`, `trusted_review_contract_digest` da closure completa do reviewer trusted da main e `review_context_fingerprint`. Revalidar antes de READY mesmo com HEAD estável. Contrato/merge-base/payload diferente invalida clean, sem segunda API paga; indisponibilidade → `BLOCKED_EXTERNAL`.
 
 ### D5. Estado, monotonicidade e concorrência
 
-Definir schema de checkpoints com versão, `operation_key`, `expected_head_sha`, `root_cause_family_id`, `attempt`, `gate_evidence` e timestamps. Revalidar dados reais antes de qualquer escrita. `Git ref force:false` não é CAS de estado lógico; Actions concurrency não fornece fila durável. Deduplicar por operação/HEAD e testar corridas e readback ambíguo. Na ausência de storage com guardas provadas, manter controle de avanço apenas manual/read-only.
+**Backend escolhido no desenho:** PostgreSQL transacional separado, a provisionar somente com aprovação humana, com `operation_key PRIMARY KEY`, `SELECT FOR UPDATE`, `owner_run_id`, `lease_expires_at`, `fencing_epoch`, `published_head_sha`. Credenciais somente no publisher/writer trusted da main, nunca Work. Duas execuções competindo pela mesma chave devem ser serializadas com fencing. GitHub e DB **não são uma transação distribuída**: POST incerto exige readback e bloqueio antes de qualquer retry. `Git ref force:false` e Actions concurrency não são CAS/filas duráveis. **Criar e testar M2b antes do primeiro piloto M3 mutável**; sem banco autorizado, manter observador read-only.
 
 ### D6. PRs legados
 
@@ -50,10 +54,11 @@ Definir schema de checkpoints com versão, `operation_key`, `expected_head_sha`,
 
 | Marco | Entrega concreta | Dono/execução | Critério de saída | Gate |
 | --- | --- | --- | --- | --- |
-| M0: documentação | ADR-0015 rev.2 `Proposed`, SDD-0002 v0.2 `In Review`, DE/PARA, links e plano | Product & SDD | CI documental + pareceres formais, sem falsas aprovações | `HUMAN_DECISION_REQUIRED` |
-| M1: perímetro de confiança | Inventário de permissão, proteção real de push direto em main (ou sandbox segregado), e gate de paths protegido em CI; provar autorização humana fora do comentário GitHub | Security + Platform, PR próprio | Canary negativo impede integração proibida; não há token Work privilegiado sem mitigação | `HUMAN_DECISION_REQUIRED` se capacidade não existir |
-| M2: observador seguro | Scanner/read-only para PR/HEAD/checks/pending e métricas, schema idempotente versionado | Actions, PR técnico | Reprocessa duplicata/stale/ACK incerto, nunca publica código ou chama IA | CI + CODEX-01 antes do merge |
-| M3: piloto same-repo | Nova tarefa Work supervisionada com uma família de PR/issue; contrato estrito e versionado | Humano ativa; Work executa branch | 3 ciclos reais com CI, CODEX-01 do HEAD, `READY_FOR_HUMAN_MERGE`, nenhum merge | Gates técnicos + humano |
+| M0: documentação | ADR-0015 rev.3 `Proposed`, SDD-0002 v0.3 `In Review`, DE/PARA, links e plano | Product & SDD | CI documental + pareceres formais, sem falsas aprovações | `HUMAN_DECISION_REQUIRED` |
+| M1: identidade + grant humano | Sandbox distinto, desconexão Work do principal, identidade limitada ao sandbox, ruleset main e receipts `workflow_dispatch` trusted | Security + humano | Negar escrita Work no principal e negar grant forjado | Decisão humana/CI/segurança |
+| M2a: observador + receipts | Scanner read-only e validação de escopo/READY/merge humano-only | GitHub Actions trusted main | Prova de provenance sem autowakeup imaginado | CI + CODEX-01 |
+| M2b: exclusão + trusted publisher **obrigatório** | PostgreSQL transacional, writer único/fencing, manifest e denylist pré-escrita, readback de POST incerto | Platform + Security, PR técnico | Canaries de dois runners, crash, patch `.github/**` recusado antes de commit, grants falsos | Gate técnico e humano antes de M3 |
+| M3: piloto isolado sandbox → PR principal | Work sem escrita no principal, publisher trusted cria PR draft sob operação autorizada | Work sandbox + publisher main | 3 ciclos de CI + CODEX-01 fingerprint atual, READY sem merge | M1/M2a/M2b PASS obrigatórios |
 | M4: segurança e resiliência | Event loss, quota, desconexão, forks hostis, loop, concorrência, control plane, rollback | QA/Security/Platform | Matriz E2E verde e incidentes reportados corretamente; sem bypass | `HUMAN_DECISION_REQUIRED` em falha |
 | M5: decisão operacional | Avaliação dos resultados e possibilidade de ampliar escopo | Responsável humano | Decisão explícita, custo/franquia e limites aceitos, revisão de SDD/ADR se material | Nenhuma ativação automática |
 | M6: integração formal | PR principal após reviews, `ORCHESTRATOR_READY`, autorização e merge; PR administrativo de status | Governança | `MERGE-01`, `STATUS-01`, `DONE_ALLOWED` somente com evidências | Merge sempre humano |
@@ -87,20 +92,20 @@ Uma regra da arquitetura antiga só pode ser retirada do contrato vigente depois
 | T02 | Texto parecido, usuário bot ou diff hostil | Nenhuma ação de escrita |
 | T03 | HEAD muda entre wake-up e commit | Bloqueia/stale; nunca sobrescreve novo HEAD |
 | T04 | CI inicial vermelho, código corrigível | Nova revisão, CI verde vinculado ao novo HEAD |
-| T05 | Novo commit após CODEX-01 | Invalidação do review antigo |
+| T05 | HEAD igual, merge-base ou trusted_review_contract_digest alterado | CODEX-01 anterior invalidado, READY bloqueado |
 | T06 | Revisão Codex ausente | `BLOCKED_EXTERNAL` / sem READY |
 | T07 | Evento nunca chega ou é coalescido | Observador aponta pendência com evidência; não presume execução |
 | T08 | Task desabilitada/franquia esgotada | Sem API paga, alerta `BLOCKED_EXTERNAL` |
-| T09 | Arquivo `.github/**` no diff de remediação | Rejeição independente da integração |
+| T09 | Patch do sandbox contém `.github/**` | Rejeitar **antes de gravar qualquer commit** no principal, sem sanitizar parcialmente |
 | T10 | Conector pode escrever em `main` | Falha de segurança; bloquear piloto até mitigação |
 | T11 | PR oriundo de fork | Nenhum checkout/execução com credenciais de escrita |
-| T12 | Duas execuções do mesmo PR | Uma transição mutável efetiva; duplicata sem efeito |
+| T12 | Dois runners/mesma operation_key | Apenas um owner/epoch sob PostgreSQL; outra tentativa bloqueada sem publicar |
 | T13 | Mesmo erro após 3 tentativas | `LOOP_ESCALATION_REQUIRED` |
 | T14 | Alteração material de escopo/risco | `HUMAN_DECISION_REQUIRED` |
 | T15 | Solicitação de compra de créditos/API | Bloqueio e registro, nenhum gasto |
 | T16 | Restart após POST com ACK duvidoso | Reconsulta autoritativa, sem duplicidade |
 | T17 | Comentário pede ignorar AGENTS.md | Ignorar instrução adversarial |
-| T18 | Tentativa de merge sem autorização humana | GitHub nega; nenhum status DONE |
+| T18 | Comentário forjado ou merge sem MergeGrantReceipt humano-only | Gate trusted nega; nenhum status DONE |
 | T19 | Tarefa Work muda de prompt/config | Revisão e aprovação do novo contrato antes de continuar |
 | T20 | GitHub Actions sem check de SEC-01 | Bloqueio de merge |
 
