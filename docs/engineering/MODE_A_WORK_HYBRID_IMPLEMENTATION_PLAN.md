@@ -1,7 +1,7 @@
 # Mode A: plano de piloto Work sandbox → promoção humana
 
-**Atualização:** 2026-10-14. **Status:** planejamento documental da opção A, ainda sem aceite ADR/SDD e sem implementação do piloto. **Rastreabilidade:** issue #10 (decisão humana), issue #8 (canaries), PR #11.  
-**Contratos propostos:** ADR-0015 rev.6 `Proposed` e SDD-0002 v0.6 `In Review`.  
+**Atualização:** 2026-10-14. **Status:** desenho A formalmente aceito/aprovado nos documentos; piloto ainda **sem implementação ou ativação**. **Rastreabilidade:** issue #10 (decisão humana), issue #8 (canaries), PR #11.  
+**Contratos de desenho aprovados:** ADR-0015 rev.6 `Accepted` e SDD-0002 v0.6 `Approved`, com [registro da decisão humana](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6171309622). **PR #11 não integrado à main.**  
 **Vigentes:** ADR-0014 rev.5 `Accepted`, SDD-0001 v1.6 `Approved`, `AGENTS.md`, `CI_GATES.md`.
 
 ## 1. Objetivo e limites
@@ -85,7 +85,7 @@ Medir tempo de wake-up, CI do sandbox, tentativas, taxa de patches rejeitados, t
 
 ## 8. Responsabilidades humanas
 
-- Aceitar ADR rev.6 e aprovar SDD v0.6 **separadamente**, após pareceres.
+- **Concluído em 14/10/2026:** aceite específico da ADR rev.6 e aprovação específica da SDD v0.6, após os pareceres, apenas como documentação. **Não confundir com autorização de merge/ativação.**
 - Escolher sandbox, conferir permissões GitHub/Work, autorizar/habilitar canary específico e desligar em falhas.
 - Conferir diff completo do candidato, executar transferência **manual** no GitHub e abrir PR principal.
 - Validar READY e autorizar cada merge no mesmo PR/HEAD, nunca consentimento genérico.
@@ -94,9 +94,9 @@ Medir tempo de wake-up, CI do sandbox, tentativas, taxa de patches rejeitados, t
 ## 9. Estado e próximos gates
 
 - **Concluído:** aprovação humana da **direção A** para documentação, três canaries históricos, ruleset principal ativo.
-- **Em revisão:** PR #11 documental, ADR-0015 rev.6 `Proposed` e SDD-0002 v0.6 `In Review`. Review Codex do novo HEAD ainda precisa ser solicitado/concluído.
+- **Aprovados documentalmente:** ADR-0015 rev.6 `Accepted` e SDD-0002 v0.6 `Approved`, com prova humana na issue #12; PR #11 ainda DRAFT e não integrado. **GOV/SEC/Codex devem ser revalidados no HEAD pós-registro.**
 - **Não concluído:** avaliação do sandbox, restrição Work, task canary nova, patch promovido, CI/Codex de PR piloto principal, aceite documental, merge.
 - **Bloqueio:** se a conexão Work não puder excluir escrita no principal, o piloto A não pode ser ativado. Nenhum custo ou API paga.
-- **Próximo passo:** CI documental → revisão Codex → pareceres formais → decisão humana separada sobre ADR/SDD → somente depois M1/M2.
+- **Próximo passo:** CI/Codex do HEAD atualizado → avaliação de PRE_MERGE sem presunção de autorização → aguardar autorização humana de merge distinta. Apenas depois de eventual integração e novo gate humano considerar M1; M2 continua bloqueado até isolamento real.
 
 O projeto não considera `PHASE-0-G` concluída e não altera `docs/PROJECT_STATUS.md` ou `AGENTS.md` nesta entrega.
