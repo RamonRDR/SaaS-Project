@@ -207,7 +207,7 @@ Estas perguntas **bloqueiam ativação**, e a incapacidade técnica de isolar id
 
 ## 24. ADRs necessários ou relacionados
 
-ADR-0015 rev.6 `Accepted` estabelece exclusivamente o desenho alternativo do piloto A, ainda sem ativação. ADR-0014 rev.5 `Accepted`, ADR-0010 e SDD-0001 v1.6 `Approved` permanecem vigentes no runtime principal, sem supersessão automática. O aceite formal documental é distinto da decisão anterior de escolher a direção A e de uma futura autorização de implementação/merge.
+ADR-0015 rev.6 `Accepted` é necessária para sucessão futura. ADR-0014 rev.5 `Accepted`, ADR-0010 e SDD-0001 v1.6 permanecem vigentes. A decisão humana de direção A não altera o estado destes documentos.
 
 ## 25. Histórico de revisão
 
