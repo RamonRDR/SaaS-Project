@@ -95,7 +95,7 @@ Medir tempo de wake-up, CI do sandbox, tentativas, taxa de patches rejeitados, t
 
 - **Concluído:** aprovação humana da **direção A** para documentação, três canaries históricos, ruleset principal ativo.
 - **Aprovados documentalmente:** ADR-0015 rev.6 `Accepted` e SDD-0002 v0.6 `Approved`, com prova humana na issue #12; PR #11 ainda DRAFT e não integrado. **GOV/SEC/Codex devem ser revalidados no HEAD pós-registro.**
-- **Não concluído:** avaliação do sandbox, restrição Work, task canary nova, patch promovido, CI/Codex de PR piloto principal, aceite documental, merge.
+- **Não concluído:** avaliação do sandbox, comprovação de restrição da conexão Work, autorização específica de ativação, task canary nova, patch promovido, CI/Codex do futuro PR piloto principal e autorização de merge do PR #11 (não concedida). **O aceite documental já foi concluído** e não é pendência.
 - **Bloqueio:** se a conexão Work não puder excluir escrita no principal, o piloto A não pode ser ativado. Nenhum custo ou API paga.
 - **Próximo passo:** CI/Codex do HEAD atualizado → avaliação de PRE_MERGE sem presunção de autorização → aguardar autorização humana de merge distinta. Apenas depois de eventual integração e novo gate humano considerar M1; M2 continua bloqueado até isolamento real.
 
