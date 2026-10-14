@@ -151,6 +151,15 @@ A tabela da **seção 13** é a fotografia histórica da elaboração da **rev.6
 | Platform & Observability | Favorável **ao desenho**, com viabilidade operacional ainda sujeita aos gates do piloto | [parecer Platform](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170662936) |
 | QA & Quality | Favorável à **testabilidade documental**; testes E2E/negativos ainda **não executados** | [parecer QA](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170680845) |
 
+### Especialidades não aplicáveis no PR documental
+
+Conforme o `docs/adr/ADR-TEMPLATE.md` §13, registramos explicitamente a aplicabilidade das especialidades ausentes da fotografia histórica da seção 13. **Não houve handoff nem parecer dessas especialidades; a avaliação é `Não aplicável` com justificativa pelo Orchestrator**, não revisão fictícia. A seção decisória 13 permanece imutável.
+
+| Especialidade | Aplicabilidade nesta revisão documental | Justificativa |
+| --- | --- | --- |
+| Backend | **Não aplicável** | O PR #11 não altera código executável, API, regras de domínio, serviços ou persistência de backend. Revisões/gates de implementação futura não ficam dispensados. |
+| Frontend | **Não aplicável** | O PR #11 não altera interfaces, componentes, telas, estado ou build Flutter/frontend. Revisões/gates de implementação futura não ficam dispensados. |
+
 **Ordem comprovável:** proposta rev.6 → três handoffs e reconciliação técnica → [aceite humano formal](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6171309622). Pareceres gerados por subagentes de IA, **não por auditores humanos externos**.
 
 **Natureza desta reconciliação:** errata de status/provenance na **seção 16, fora das seções decisórias 1–14**, sem modificar uma decisão já `Accepted` ou falsificar um novo ciclo de revisão. A regra 45 de `AGENTS.md` mantém a seção 13 original imutável; este registro posterior é a fonte da situação **atual** dos pareceres. Se futuramente for necessário alterar **materialmente** o conteúdo decisório, será exigida **ADR sucessora com novo ID e aprovação humana própria**, não reescrita da rev.6.
