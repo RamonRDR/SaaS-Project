@@ -30,7 +30,7 @@ O bloco abaixo é reservado ao enforcement de CI.
 - Phase 0F — Definition of Done e gates de CI: concluída;
 - Mode A interativo: operacional;
 - runtime unattended anterior: experimento encerrado e não importado para o repositório público;
-- novo runtime unattended: em redesenho para execução 100% cloud-native;
+- novo runtime unattended: piloto A com arquitetura documentada e aprovada (ADR-0015 rev.6 / SDD-0002 v0.6, PR #11 integrado); **ainda não implementado nem ativado**;
 - backend de produto: não iniciado;
 - frontend de produto: não iniciado;
 - PHASE-0-G permanece planejada até a conclusão do novo runtime unattended.
@@ -52,17 +52,17 @@ O bloco abaixo é reservado ao enforcement de CI.
 
 ## Próximo marco
 
-Redesenhar e validar o **runtime unattended do Mode A** com as seguintes premissas:
+**Piloto A do Mode A, etapas M1–M4 (ainda não executadas):**
 
-1. execução 100% online;
-2. zero dependência de máquina local;
-3. GitHub Actions no critical path da orquestração;
-4. Codex como executor/reviewer de IA em jobs controlados;
-5. fail-closed, idempotência, provenance e anti-loop;
-6. merge principal sempre sujeito a autorização humana explícita;
-7. validação E2E antes de liberar PHASE-0-G.
+1. **M1: isolamento**. Escolher e autorizar sandbox separado, auditar a conexão GitHub efetivamente usada pelo Work e comprovar ausência de escrita, comentários e administração no repositório principal. A conexão ampla existente não é evidência de isolamento.
+2. **M2: canary Work somente no sandbox**. Após M1 e autorização de ativação específica, testar wake-up legítimo/duplicado, escopo pequeno e reversível, PR draft e CI sem secrets do principal.
+3. **M3: promoção humana**. O responsável inspeciona diff e manifesto completos, rejeita candidato que toque control plane e reproduz manualmente patch pequeno permitido pelo GitHub web em novo PR principal, com HEAD, CI e Codex próprios.
+4. **M4: validação**. Reconciliar gates, `REVIEW_CONTRACT_FROZEN`, `CODEX-01` no HEAD exato, READY e MERGE-01 somente mediante autorização humana posterior.
+5. **Retomada por evento**. O observador horário `SaaS Project — Codex Review Watch` é read-only e não ativa Work; o novo contrato de wake-up deve ser implementado e testado em PR próprio. O contrato legado `.ai/runtime/prompts/work-unattended.md` está ausente da `main`, portanto tarefas que dependam dele devem falhar fechado, sem improvisação.
 
-A especificação e a decisão arquitetural do novo runtime serão versionadas em uma nova SDD/ADR antes da implementação.
+A arquitetura do piloto A foi integrada documentalmente pelo [PR #11](https://github.com/RamonRDR/SaaS-Project/pull/11), com [`POST_MERGE / STATUS_FINALIZATION_ALLOWED`](https://github.com/RamonRDR/SaaS-Project/pull/11#issuecomment-6180238057). A execução/segregação está rastreada na [issue #13](https://github.com/RamonRDR/SaaS-Project/issues/13). Publicador autônomo, Budget Broker pago, credenciais de escrita principal no Work e APIs pagas continuam fora do escopo do piloto A.
+
+**PHASE-0-G continua `planned`** e seus gates próprios não foram comprovados. O encerramento documental M0 não autoriza ativação, gasto, merge de PR subsequente ou `DONE_ALLOWED` de PHASE-0-G.
 
 ## Política pública
 
