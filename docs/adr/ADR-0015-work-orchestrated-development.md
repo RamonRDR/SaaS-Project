@@ -4,20 +4,20 @@
 
 - **ID:** ADR-0015
 - **Título:** Desenvolvimento orquestrado pelo Work com enforcement no GitHub
-- **Status:** Proposed
+- **Status:** Accepted
 - **Revisão decisória:** 6
 - **Data de criação:** 2026-10-13
 - **Última atualização:** 2026-10-14
 - **Responsável pela proposta documental:** Product & SDD
-- **Revisor técnico:** Orchestrator / Tech Lead (pendente de parecer formal)
+- **Revisor técnico:** Orchestrator / Tech Lead (parecer rev.6 concluído, issue #12)
 - **Responsável humano pelo aceite:** responsável pelo repositório
-- **SDDs relacionadas:** SDD-0002 v0.6 (candidata); SDD-0001 v1.6 (Approved, vigente)
+- **SDDs relacionadas:** SDD-0002 v0.6 (Approved para o piloto A); SDD-0001 v1.6 (Approved, vigente sem ativação)
 - **ADRs relacionadas:** ADR-0014 rev.5 (Accepted, vigente); ADR-0010 (Accepted); ADR-0013 rev.1 (Superseded)
-- **PR / issue relacionada:** Issues #1, #8 e #10; PRs experimentais #7 e #9; pareceres rev.1 no PR #11
+- **PR / issue relacionada:** Issues #1, #8, #10 e #12; PR #11 (DRAFT, sem merge); canaries PRs #7 e #9
 
 ### Estados permitidos e validade
 
-`Proposed` (atual), `Accepted`, `Rejected`, `Superseded`, `Deprecated`. Somente parecer formal `Pronto para aceite humano` sobre a revisão decisória vigente, sem bloqueantes, seguido de aceite humano explícito, permite `Accepted`. As seções 1 a 14 são decisões materiais; alteração exige nova revisão e novo parecer. **A autorização de 13/10/2026 foi para elaborar esta proposta, NÃO seu aceite.**
+`Proposed`, `Accepted` (atual, rev.6), `Rejected`, `Superseded`, `Deprecated`. O estado `Accepted` decorre do parecer formal `Pronto para aceite humano` sem bloqueantes de desenho e do aceite humano explícito registrado em 14/10/2026. As seções 1 a 14 são decisões materiais; alteração futura requer ADR sucessor conforme lifecycle. **A autorização de 13/10/2026 foi apenas para elaboração; o aceite formal foi dado separadamente em 14/10/2026.**
 
 ## 1. Contexto
 
@@ -128,24 +128,29 @@ Nenhum parecer de especialista externo é presumido como concluído.
 | 2026-10-13 | Orchestrator / Tech Lead | Rev.4: separar ScopeGrant de MERGE-01 vigente e controlar cota entre chaves de operação diferentes | Proposed rev.4 |
 | 2026-10-13 | Orchestrator / Tech Lead | Rev.5: intenção global de publicação durável não-preemptível e quarentena até capacidade anterior invalidada | Proposed rev.5 |
 | 2026-10-14 | Orchestrator / Tech Lead | Rev.6: piloto A sandbox com promoção humana; publisher automático adiado por anti-loop | Proposed rev.6 |
+| 2026-10-14 | Responsável humano, decisão interativa registrada pelo Orchestrator | Aceite formal da rev.6 após pareceres; **somente desenho do piloto A**, sem merge ou ativação | Accepted rev.6 |
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** Pendente, não executado.
-- **Revisão decisória revisada:** Não aplicável.
-- **Revisor:** Orchestrator / Tech Lead (a designar no fluxo de review).
-- **Data:** Não aplicável.
-- **Pendências bloqueantes:** pareceres especializados sobre isolamento da identidade Work, promoção manual online e checks do PR principal; nenhuma publicação automática nesta fase.
-- **Pendências não bloqueantes:** Ajustes editoriais após revisão.
+- **Parecer de `review-adr`:** `Pronto para aceite humano`.
+- **Revisão decisória revisada:** 6.
+- **Revisor:** Orchestrator / Tech Lead, reconciliação dos pareceres especializados documentados.
+- **Data:** 2026-10-14.
+- **Registro do parecer:** https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170686193.
+- **Contribuições verificadas:** Security, Platform e QA na issue #12, vinculadas à rev.6 e ao HEAD `df5d5dabfb9b89163b3b14b0c265be7bff3d61ea`.
+- **Pendências bloqueantes do desenho:** Nenhuma.
+- **Pendências de ativação (não resolvidas):** comprovação de isolamento Work→principal, seleção/configuração humana de sandbox, testes negativos e autorização específica para iniciar canary. A ausência dessas provas **proíbe a ativação**.
 
-O texto não declara `Pronto para aceite humano` sem parecer verificável.
+Este parecer vale exclusivamente para o desenho da **rev.6**. Nenhuma revisão de segurança comprova que as credenciais atuais já estão isoladas.
 
 ## 17. Aceite humano
 
-- **Aceito:** Não.
-- **Responsável humano:** Responsável pelo repositório.
-- **Data:** Não aplicável.
-- **Revisão decisória aceita:** Não aplicável.
-- **Registro do aceite:** Não aplicável.
+- **Aceito:** Sim, `Accepted` exclusivamente para a arquitetura do piloto A.
+- **Responsável humano:** Responsável pelo repositório, decisão explícita no canal interativo do Orquestrador.
+- **Data:** 2026-10-14.
+- **Revisão decisória aceita:** 6.
+- **Registro do aceite:** https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6171309622.
+- **Provenance:** transcrição da decisão humana feita pelo Orquestrador por conexão GitHub delegada. O comentário não foi digitado manualmente pelo responsável na interface GitHub.
+- **Limites expressos:** **NÃO autoriza merge do PR #11, publicação na main, ativação do Work/piloto, modificações de credenciais, implantação de publisher automático, gastos ou `PHASE-0-G` concluída**.
 
-A autorização humana para **elaboração** não substitui revisão/aceite da ADR. Até o aceite, ADR-0014 rev.5 continua `Accepted`.
+A ADR-0014 rev.5 permanece `Accepted` para o mecanismo vigente e **não** é marcada `Superseded` nesta branch. O aceite desta alternativa experimental **não representa ativação/substituição operacional**.
