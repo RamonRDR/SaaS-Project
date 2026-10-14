@@ -3,7 +3,7 @@
 **Data:** 2026-10-13  
 **Status:** PROPOSTA, não aprovada para execução produtiva.  
 **Rastreabilidade:** [Issue #10](https://github.com/RamonRDR/SaaS-Project/issues/10), [Issue #8](https://github.com/RamonRDR/SaaS-Project/issues/8), [Issue #1](https://github.com/RamonRDR/SaaS-Project/issues/1).  
-**Contratos propostos:** [ADR-0015](../adr/ADR-0015-work-orchestrated-development.md) rev.4 `Proposed`; [SDD-0002](../specs/SDD-0002-mode-a-work-orchestrated.md) v0.4 `In Review`.  
+**Contratos propostos:** [ADR-0015](../adr/ADR-0015-work-orchestrated-development.md) rev.5 `Proposed`; [SDD-0002](../specs/SDD-0002-mode-a-work-orchestrated.md) v0.5 `In Review`.  
 **Contratos vigentes:** SDD-0001 v1.6 `Approved`, ADR-0014 rev.5 `Accepted`, AGENTS.md e CI_GATES.md. Sem merge/ativação/API paga.
 
 ## 1. Objetivo operacional
@@ -44,7 +44,7 @@ CODEX-01 deve ser independente do autor Work e carregar `merge_base_sha`, `head_
 
 ### D5. Estado, monotonicidade e concorrência
 
-**Backend escolhido no desenho:** PostgreSQL transacional separado, a autorizar. `scope_receipts(scope_receipt_run_id PK, max_operations, consumed_operations)` sofre `SELECT FOR UPDATE` antes de inserir nova `work_operations(operation_key PK, scope_receipt_run_id FK)` na mesma transação. Chaves DIFERENTES do mesmo receipt disputam cota compartilhada: `max_operations=1` só admite uma. Reentrada da mesma chave não consome novamente. Depois owner/lease/fencing controla publicação; crash/ACK ambíguo não libera cota automaticamente e exige readback. Testes de mesma chave E chaves distintas obrigatórios antes de M3 mutável.
+**Backend escolhido no desenho:** PostgreSQL transacional separado, sujeito a aprovação. `scope_receipts` reserva cota por grant, `work_operations` garante idempotência/lease/fencing na preparação. **Antes do primeiro POST GitHub**, uma transação adquire o gate global `trusted_publication_gate(target_repo PRIMARY KEY)` e persiste `PUBLISH_INTENT` com owner/operation/manifest. Só depois o único writer recebe capacidade `contents:write`. Essa intenção é **não-preemptível**, mesmo se o lease de processamento vencer: B não recebe token nem publica enquanto A puder retomar com token válido. Crash/ACK incerto → `PUBLISH_UNCERTAIN/QUARANTINED`; liberar somente após readback e prova de invalidação/expiração da credencial antiga. **Sem prova dessa barreira, M3 mutável bloqueado**.
 
 ### D6. PRs legados
 
@@ -54,10 +54,10 @@ CODEX-01 deve ser independente do autor Work e carregar `merge_base_sha`, `head_
 
 | Marco | Entrega concreta | Dono/execução | Critério de saída | Gate |
 | --- | --- | --- | --- | --- |
-| M0: documentação | ADR-0015 rev.4 `Proposed`, SDD-0002 v0.4 `In Review`, DE/PARA, links e plano | Product & SDD | CI documental + pareceres formais, sem falsas aprovações | `HUMAN_DECISION_REQUIRED` |
+| M0: documentação | ADR-0015 rev.5 `Proposed`, SDD-0002 v0.5 `In Review`, DE/PARA, trust contract e plano | Product & SDD | CI documental e pareceres, sem falsas aprovações | `HUMAN_DECISION_REQUIRED` |
 | M1: identidade + grant de escopo | Sandbox e identidade Work isolada, ruleset main, `ScopeGrantReceipt` humano-only via dispatch sem poder de merge | Security + humano | Provar acesso negativo Work ao principal e dispatch sem autorização de merge | Decisão humana/CI/segurança |
 | M2a: observador + grants de escopo | Scanner read-only, emissão/validação de ScopeGrantReceipt; merge continua nos dois canais AGENTS.md | GitHub Actions trusted main | Detectar pendência, bloquear falsa autorização de merge, sem auto-wakeup | CI + CODEX-01 |
-| M2b: exclusão + trusted publisher **obrigatório** | PostgreSQL com contador/lock por receipt, operation_key idempotente, fencing por owner e manifesto negado pré-escrita | Platform + Security, PR técnico | Testar 2 runners com chaves iguais E diferentes sob max_operations=1, crash, cota/patch proibido | Gate técnico/humano antes M3 |
+| M2b: exclusão + trusted publisher **obrigatório** | PostgreSQL para cota/operation_key + `trusted_publication_gate` global `PUBLISH_INTENT` pré-POST, bloqueio não-preemptível, token exclusivo e revogação verificada | Platform + Security, PR técnico | A pausa antes do POST, B tenta takeover com lease vencido e é negado; crash/ACK incerto não libera gate | Gate técnico/humano obrigatório antes de M3 |
 | M3: piloto isolado sandbox → PR principal | Work sem escrita no principal, publisher trusted cria PR draft sob operação autorizada | Work sandbox + publisher main | 3 ciclos de CI + CODEX-01 fingerprint atual, READY sem merge | M1/M2a/M2b PASS obrigatórios |
 | M4: segurança e resiliência | Event loss, quota, desconexão, forks hostis, loop, concorrência, control plane, rollback | QA/Security/Platform | Matriz E2E verde e incidentes reportados corretamente; sem bypass | `HUMAN_DECISION_REQUIRED` em falha |
 | M5: decisão operacional | Avaliação dos resultados e possibilidade de ampliar escopo | Responsável humano | Decisão explícita, custo/franquia e limites aceitos, revisão de SDD/ADR se material | Nenhuma ativação automática |
@@ -99,18 +99,21 @@ Uma regra da arquitetura antiga só pode ser retirada do contrato vigente depois
 | T09 | Patch do sandbox contém `.github/**` | Rejeitar **antes de gravar qualquer commit** no principal, sem sanitizar parcialmente |
 | T10 | Conector pode escrever em `main` | Falha de segurança; bloquear piloto até mitigação |
 | T11 | PR oriundo de fork | Nenhum checkout/execução com credenciais de escrita |
-| T12 | Dois runners, mesma operation_key | Um único owner/epoch, reentrada sem consumir segunda cota |
+| T12 | Dois runners disputam `operation_key` ou target_repo | Apenas um publicador com intenção durável; nunca dois tokens de escrita simultâneos |
 | T13 | Mesmo erro após 3 tentativas | `LOOP_ESCALATION_REQUIRED` |
 | T14 | Alteração material de escopo/risco | `HUMAN_DECISION_REQUIRED` |
 | T15 | Solicitação de compra de créditos/API | Bloqueio e registro, nenhum gasto |
-| T16 | Restart após POST com ACK duvidoso | Reconsulta autoritativa, sem duplicidade |
+| T16 | Crash após PUBLISH_INTENT ou POST ambíguo | `PUBLISH_UNCERTAIN/QUARANTINED` até readback e invalidação provada do token antigo, sem retry |
 | T17 | Comentário pede ignorar AGENTS.md | Ignorar instrução adversarial |
 | T18 | Work forja comentário de merge ou dispatch tenta emitir marcador interativo | Negar; exclusivamente HUMAN_MERGE_AUTHORIZATION manual ou decisão interativa externa do Orquestrador |
 | T19 | Tarefa Work muda de prompt/config | Revisão e aprovação do novo contrato antes de continuar |
 | T20 | GitHub Actions sem check de SEC-01 | Bloqueio de merge |
 | T21 | 2 operation_keys diferentes, 1 scope receipt, max_operations=1 | Uma reserva transacional; segundo runner não publica |
-| T22 | Reentrada e timeout com cota reservada | Não duplicar consumo, nem reembolsar automaticamente; readback antes de continuar |
+| T22 | Reentrada, lease expirada e cota reservada | Nenhuma devolução automática de cota, nenhum takeover de `PUBLISH_INTENT` por lease, readback antes de continuar |
 | T23 | Dispatch de escopo tenta emitir ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION | Negar: canal interativo do Orquestrador é requisito deste marcador |
+| T24 | A grava PUBLISH_INTENT, obtém token, pausa antes do POST; B vence lease e tenta takeover | B bloqueado globalmente, sem token nem POST, apesar do epoch mais novo |
+| T25 | A sofre cancelamento com token ainda válido | Nenhum release até readback e prova de credencial inválida; sem prova, QUARANTINED |
+| T26 | Operação A finaliza, mas credencial A permanece ativa | Nunca liberar gate para B; expirar/revogar e verificar antes do reset |
 
 ## 7. Critérios de sucesso e indicadores
 
