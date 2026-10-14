@@ -112,4 +112,4 @@ Conteúdo em português do Brasil. Identificadores técnicos e exemplos de códi
 | [ADR-0012](./ADR-0012-github-actions-codex-runtime-unattended.md) | GitHub Actions + Codex como runtime unattended, decisão histórica substituída pela ADR-0013 | 7 | Pronto para aceite humano | `Superseded` | Registrado |
 | [ADR-0013](./ADR-0013-runtime-unattended-hardening.md) | Runtime unattended: budget global, merge-base e hardening de fork, histórica substituída pela ADR-0014 | 1 | Pronto para aceite humano | `Superseded` | Registrado |
 | [ADR-0014](./ADR-0014-claim-before-budget.md) | Claim universal, writer global, contrato trusted de review e causa raiz do Remediator | 5 | Pronto para aceite humano | `Accepted` | Registrado #6091567757 |
-| [ADR-0015](./ADR-0015-work-orchestrated-development.md) | Proposta sucessora: Work sandbox e publicação com intenção não-preemptível | 5 | Pendente | `Proposed` | Não |
+| [ADR-0015](./ADR-0015-work-orchestrated-development.md) | Piloto temporário: Work sandbox e promoção humana ao principal | 6 | Pendente | `Proposed` | Não |
