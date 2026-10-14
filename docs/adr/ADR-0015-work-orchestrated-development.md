@@ -5,13 +5,13 @@
 - **ID:** ADR-0015
 - **Título:** Desenvolvimento orquestrado pelo Work com enforcement no GitHub
 - **Status:** Proposed
-- **Revisão decisória:** 4
+- **Revisão decisória:** 5
 - **Data de criação:** 2026-10-13
 - **Última atualização:** 2026-10-13
 - **Responsável pela proposta documental:** Product & SDD
 - **Revisor técnico:** Orchestrator / Tech Lead (pendente de parecer formal)
 - **Responsável humano pelo aceite:** responsável pelo repositório
-- **SDDs relacionadas:** SDD-0002 v0.4 (candidata); SDD-0001 v1.6 (Approved, vigente)
+- **SDDs relacionadas:** SDD-0002 v0.5 (candidata); SDD-0001 v1.6 (Approved, vigente)
 - **ADRs relacionadas:** ADR-0014 rev.5 (Accepted, vigente); ADR-0010 (Accepted); ADR-0013 rev.1 (Superseded)
 - **PR / issue relacionada:** Issues #1, #8 e #10; PRs experimentais #7 e #9; pareceres rev.1 no PR #11
 
@@ -63,7 +63,7 @@ A SDD-0001 v1.6 **exclui o Work como componente obrigatório**, logo uma mudanç
 
 ### B. Work como executor de desenvolvimento + Actions como enforcement (recomendada para piloto)
 
-**Descrição:** tarefa Work de escopo explícito reage a eventos GitHub **somente no sandbox separado**, onde publica candidatos sem privilégios sobre o principal. GitHub Actions da `main`, com writer trusted e exclusão durável PostgreSQL, verifica manifests/paths **antes** de qualquer commit no principal, depois publica branch e PR draft. Actions valida CI/governança, CODEX-01 independente revisa fingerprint do HEAD e humano autoriza merge com receipt independente.
+**Descrição:** tarefa Work de escopo explícito reage a eventos GitHub **somente no sandbox separado**, onde publica candidatos sem privilégios sobre o principal. GitHub Actions da `main`, com writer trusted e exclusão durável PostgreSQL, verifica manifests/paths **antes** de qualquer commit no principal. **Antes da primeira chamada mutável**, registra `PUBLISH_INTENT` global e não-preemptível; nenhum runner seguinte escreve enquanto a capacidade do anterior puder continuar válida. Depois publica branch e PR draft. Actions valida CI/governança, CODEX-01 independente revisa fingerprint do HEAD e humano autoriza merge com receipt independente.
 
 **Vantagens:** fluxo curto já comprovado em 3 canaries, nenhum contrato de OpenAI API paga necessário para gerar código, libera desenvolvimento de produto mais cedo.
 
@@ -120,7 +120,7 @@ Apenas engenharia; nenhum dado tenant-owned é manipulado. **Trust boundary esco
 - **GitHub:** PR, `ScopeGrantReceipt` para escopo técnico via dispatch trusted, checks/status por SHA e publicador na `main`. O merge usa somente `HUMAN_MERGE_AUTHORIZATION` manual ou decisão interativa externa registrada por `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION` conforme AGENTS.md; comentário do Work não é autorização nem CAS.
 - **Work:** assinaturas de eventos dependem de configuração e franquia; conexão com identidade isolada apenas no sandbox. GitHub Actions não tem garantia de acordá-lo após evento perdido.
 - **OpenAI API paga:** ausente. O ledger financeiro e claim da ADR-0014 ficam **inativos, não apagados**, até sucessão formal e definição do modo de fallback.
-- **Estado durável/exclusão e cota:** PostgreSQL transacional escolhido, ainda sem infraestrutura aprovada. Linha `scope_receipts(scope_receipt_run_id PRIMARY KEY, max_operations, consumed_operations)` bloqueada por `SELECT FOR UPDATE` antes de admitir operação nova; mesma transação reserva uma unidade de cota e registra `work_operations(operation_key PRIMARY KEY)`. Chaves de operação diferentes com mesmo receipt disputam cota compartilhada; reentrada da mesma operação não consome novamente. Owner/fencing/lease e readback protegem publicação. Sem teste de disputa por receipt além da operation_key, nenhum M3 mutável.
+- **Estado durável/exclusão e cota:** PostgreSQL transacional escolhido, sem infraestrutura aprovada. `scope_receipts(scope_receipt_run_id PRIMARY KEY, max_operations, consumed_operations)` é bloqueada para consumo de cota antes de registrar `work_operations(operation_key PRIMARY KEY)`. Operações diferentes compartilham limite de concessão. **Novo gate global `trusted_publication_gate(target_repo PRIMARY KEY)`**: `PUBLISH_INTENT` persistido antes de qualquer credencial de escrita/POST no GitHub, e **não-preemptível mesmo com lease/epoch expirado**. Toda escrita do principal é vedada a B até reconciliação GitHub e prova de que A perdeu irreversivelmente a capacidade de escrever. Resultado incerto → `PUBLISH_UNCERTAIN` / `QUARANTINED`, sem takeover/retry automático. Sem prova de bloqueio pré-POST e revogação/expiração verificável do token anterior, nenhum M3 mutável.
 - Alterações de schemas existentes exigiriam versionamento explícito e outra revisão técnica.
 
 ## 9. Impacto operacional e observabilidade
@@ -134,7 +134,7 @@ Eventos essenciais: `TASK_OBSERVED`, `WORK_PENDING`, `CI_PENDING`, `CI_FAILED`, 
 0. Registrar esta ADR `Proposed` e SDD-0002 `In Review`; distinguir revisão/aprovação do **desenho** de autorização posterior da **operação**. Para aceitar desenho, devem estar decididos: canal confiável de autorização, perímetro de escrita, modo de bloqueio sem permissões e limites de retomada. Provas de CI/Work e segurança implantada só serão produzidas nos marcos técnicos depois da aprovação documental, antes da ativação. Obter review formal `review-adr`/`review-sdd` e, só depois, aceite/aprovação humanos.
 1. Verificar configurações atuais de Work/GitHub, permissões, quotas do plano e branch protection, sem ativar tarefa principal.
 2. Criar observador read-only e receipts humanos trusted na `main`, com prova de isolamento da identidade Work em sandbox separado.
-3. Implementar publicador trusted + PostgreSQL transacional (writer/lease/fencing), testes de concorrência e negativa de control plane **antes de qualquer escrita no principal**. Sem storage autorizado e comprovado, bloquear piloto mutável.
+3. Implementar publicador trusted + PostgreSQL transacional, **gate de publicação global não-preemptível com `PUBLISH_INTENT` antes de qualquer POST**, capacidade de escrita emitida só após intenção, testes de A pausado antes de POST e B com lease novo bloqueado, invalidação verificável de credencial e negação de control plane. **Sem essas provas, nenhum piloto mutável**, independentemente de CI verde.
 4. Executar canaries de perda de evento, duplicata, HEAD stale, reviewer fingerprint alterado, injection, concorrência e autorização forjada; depois piloto de desenvolvimento **no sandbox**, com publicador no principal e `ORCHESTRATOR_MODE: NONE`; sem merge.
 5. Somente após evidência e novo gate humano avaliar ativação operacional do Mode A para PRs reais, preservando CODEX-01 e merge humano.
 
@@ -171,7 +171,7 @@ A tabela não simula pareceres executados; somente os identifica para revisão.
 - **R2:** evento Work perdido/coalescido ou tarefa pausada/excesso de franquia: backlog observado read-only, operador humano responsável pela retomada se não houver API/gatilho comprovado; não assumir auto-resume.
 - **R3:** CODEX-01 e receipts de escopo estão especificados, não implementados/testados. O merge permanece nos dois canais já aceitos por AGENTS.md, sem criar terceiro canal via dispatch.
 - **R4:** latência e quotas Work não verificadas para a carga prevista; nenhum SLA assumido. Uma instância PostgreSQL ainda precisa de aprovação de fornecedor/infra, sem custo contratado por esta proposta.
-- **R5:** publisher/DB com owner/fencing e consumo de cota transacional por receipt estão especificados, mas sem implantação. M3 bloqueado até M2b comprovar disputa na mesma operation_key e entre operation_keys diferentes com max_operations=1.
+- **R5:** publisher/DB com cota por receipt e `trusted_publication_gate` global não-preemptível estão especificados, mas não implementados. A principal ameaça é runner A pausado antes de POST com token ainda válido; lease/fencing no banco não impede esse POST. M3 bloqueado até M2b provar que B **não recebe credencial/não escreve** até A ter capacidade invalidada, inclusive sob pausa, crash e ACK incerto.
 - **R6:** migração do contrato financeiro existente para arquitetura sem API precisa de matriz de BR/EDGE/AC, sem apagar invariantes de gasto.
 - **R7:** especificação incompleta de fluxos de fork. Bloquear mutação automática em fork.
 
@@ -185,6 +185,7 @@ A tabela não simula pareceres executados; somente os identifica para revisão.
 | 2026-10-13 | Orchestrator / Tech Lead | Ajustes materiais após review-adr rev.1 (permissões, provenance humano, separação de gates) | Proposed rev.2 |
 | 2026-10-13 | Orchestrator / Tech Lead | Rev.3: trust boundary de sandbox, receipts humanos, publisher pré-escrita, PostgreSQL/fencing e fingerprint CODEX-01 | Proposed rev.3 |
 | 2026-10-13 | Orchestrator / Tech Lead | Rev.4: separar ScopeGrant de MERGE-01 vigente e controlar cota entre chaves de operação diferentes | Proposed rev.4 |
+| 2026-10-13 | Orchestrator / Tech Lead | Rev.5: intenção global de publicação durável não-preemptível e quarentena até capacidade anterior invalidada | Proposed rev.5 |
 
 ## 16. Revisão técnica
 
@@ -192,7 +193,7 @@ A tabela não simula pareceres executados; somente os identifica para revisão.
 - **Revisão decisória revisada:** Não aplicável.
 - **Revisor:** Orchestrator / Tech Lead (a designar no fluxo de review).
 - **Data:** Não aplicável.
-- **Pendências bloqueantes:** pareceres especializados independentes e verificação do desenho da rev.3 (inclusive custo/autorizações para identidade segregada e PostgreSQL); isolamento real e canaries permanecem gates de **ativação**, não alegações de sucesso.
+- **Pendências bloqueantes:** pareceres especializados independentes e verificação do desenho rev.5 (capacidade de impedir publicação de stale writer A e segregação de token), além de custo/autorizações para identidade segregada e PostgreSQL. Implementação, invalidação comprovada de token e canaries de pausa pré-POST são gates de **ativação**, não alegações de sucesso.
 - **Pendências não bloqueantes:** Ajustes editoriais após revisão.
 
 O texto não declara `Pronto para aceite humano` sem parecer verificável.
