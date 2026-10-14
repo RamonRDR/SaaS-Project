@@ -4,19 +4,19 @@
 
 - **ID:** SDD-0002
 - **Título:** Piloto temporário Work em sandbox e promoção humana online
-- **Status:** In Review
+- **Status:** Approved
 - **Versão:** 0.6
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** responsável pelo repositório
 - **Data de criação:** 2026-10-13
 - **Última atualização:** 2026-10-14
 - **Entrega / issue / PR relacionada:** issue #10, canaries issue #8 e PR #11
-- **ADRs relacionados:** ADR-0015 rev.6 (`Proposed`), ADR-0014 rev.5 (`Accepted`), ADR-0010 (`Accepted`)
+- **ADRs relacionados:** ADR-0015 rev.6 (`Accepted` para o piloto A), ADR-0014 rev.5 (`Accepted`, baseline vigente), ADR-0010 (`Accepted`)
 - **SDDs relacionadas:** SDD-0001 v1.6 (`Approved`, ainda vigente)
 
 ### Estados permitidos e validade
 
-`Draft`, `In Review`, `Approved` e `Superseded`. Esta **v0.6 está em revisão** e não possui parecer favorável nem aprovação documental humana. A escolha humana da opção A em 14/10/2026 **autoriza direcionamento e revisão da proposta, não aprovação da SDD**, habilitação de task ou merge. Mudanças materiais invalidam parecer da versão anterior.
+`Draft`, `In Review`, `Approved` (atual, v0.6) e `Superseded`. A **v0.6 foi aprovada formalmente em 14/10/2026**, após `review-sdd` com parecer `Pronta para aprovação` e aceite humano específico separado da escolha anterior pela opção A. **A aprovação é somente do desenho:** não autoriza task, credenciais, promoção de código nem merge. Mudança material posterior invalida aprovação e exige nova versão/parecer.
 
 ## 1. Contexto
 
@@ -207,7 +207,7 @@ Estas perguntas **bloqueiam ativação**, e a incapacidade técnica de isolar id
 
 ## 24. ADRs necessários ou relacionados
 
-ADR-0015 rev.6 `Proposed` é necessária para sucessão futura. ADR-0014 rev.5 `Accepted`, ADR-0010 e SDD-0001 v1.6 permanecem vigentes. A decisão humana de direção A não altera o estado destes documentos.
+ADR-0015 rev.6 `Accepted` estabelece exclusivamente o desenho alternativo do piloto A, ainda sem ativação. ADR-0014 rev.5 `Accepted`, ADR-0010 e SDD-0001 v1.6 `Approved` permanecem vigentes no runtime principal, sem supersessão automática. O aceite formal documental é distinto da decisão anterior de escolher a direção A e de uma futura autorização de implementação/merge.
 
 ## 25. Histórico de revisão
 
@@ -222,11 +222,15 @@ ADR-0015 rev.6 `Proposed` é necessária para sucessão futura. ADR-0014 rev.5 `
 
 ## 26. Aprovação
 
-- **Status de aprovação:** Não aprovada; `In Review`.
-- **Responsável humano:** responsável pelo repositório.
-- **Versão aprovada:** não aplicável.
-- **Data/registro da aprovação:** não aplicável.
-- **Parecer `review-sdd` vigente:** pendente, específico da v0.6.
-- **Não confundir:** autorização de elaborar a proposta e escolher piloto A ≠ aprovação desta SDD ≠ autorização de ativação ≠ MERGE-01.
+- **Status de aprovação:** `Approved`, exclusivamente para o desenho do piloto A.
+- **Responsável humano:** Responsável pelo repositório, por decisão explícita no canal interativo do Orquestrador.
+- **Versão aprovada:** 0.6.
+- **Data da aprovação:** 2026-10-14.
+- **Registro de aprovação:** https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6171309622.
+- **Parecer `review-sdd` vigente:** `Pronta para aprovação`, específico da v0.6; registro https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170686193.
+- **Pendências bloqueantes de desenho:** nenhuma conforme parecer formal, após Security, Platform e QA na issue #12.
+- **Gates de ativação ainda pendentes:** isolamento efetivo da conexão Work para sandbox, escolha/configuração humana de sandbox, testes negativos e autorização explícita posterior para o primeiro canary.
+- **Provenance:** decisão humana transcrita e registrada no GitHub por conexão delegada do Orquestrador; **não** corresponde a comentário digitado manualmente pelo responsável no GitHub.
+- **Não confundir:** escolha de direção A ≠ aprovação formal desta SDD ≠ autorização de ativação ≠ aprovação de merge do PR #11.
 
-**SDD-0001 v1.6 permanece `Approved` e não deve ser marcada `Superseded` nesta branch.**
+**Esta aprovação NÃO autoriza merge, alterar a `main`, ativar tarefas, conceder credenciais, comprar serviços, usar API paga nem concluir `PHASE-0-G`.** A SDD-0001 v1.6 permanece `Approved` para o mecanismo vigente e não é marcada `Superseded` nesta branch.
