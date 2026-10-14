@@ -1,6 +1,6 @@
 # Mode A: contrato do piloto com promoção humana (proposta)
 
-**Status:** piloto temporário proposto, não implementado nem ativado. **Atualização:** 2026-10-14. **Referências:** ADR-0015 rev.6, SDD-0002 v0.6, issues #8 e #10, PR #11.
+**Status:** desenho do piloto A aprovado documentalmente (ADR rev.6 Accepted / SDD v0.6 Approved); piloto **não implementado nem ativado**. **Atualização:** 2026-10-14. **Referências:** ADR-0015 rev.6, SDD-0002 v0.6, issues #8 e #10, PR #11.
 
 ## 1. Limites de confiança
 
@@ -53,7 +53,7 @@ Qualquer retorno à publicação automática principal requer **nova decisão hu
 
 ## 6. Gates de progressão
 
-**M0 (agora):** revisão documental ADR-0015 rev.6 `Proposed` e SDD-0002 v0.6 `In Review` no PR #11; CI/pareceres e decisão humana de aprovação específicas ainda pendentes.
+**M0 (registro documental):** ADR-0015 rev.6 `Accepted` e SDD-0002 v0.6 `Approved` após pareceres, com [decisões humanas explícitas registradas na issue #12](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6171309622). PR #11 permanece **DRAFT, sem merge**, aguardando CI/Codex revalidados sobre o novo HEAD com atualizações de lifecycle. Nenhuma autorização de ativação.
 
 **M1 (depois de aprovação documental):** humano escolhe/confere sandbox, restringe instalação/conexão Work e registra resultado de teste negativo no principal; sem prova, não avançar.
 
