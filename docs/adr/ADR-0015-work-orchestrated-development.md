@@ -132,16 +132,30 @@ Nenhum parecer de especialista externo é presumido como concluído.
 
 ## 16. Revisão técnica
 
-- **Parecer de `review-adr`:** `Pronto para aceite humano`.
+- **Parecer de `review-adr`:** `Pronto para aceite humano`, específico da revisão decisória **6**.
 - **Revisão decisória revisada:** 6.
-- **Revisor:** Orchestrator / Tech Lead, reconciliação dos pareceres especializados documentados.
+- **Revisor:** Orchestrator / Tech Lead, após handoffs dos especialistas de IA identificados.
 - **Data:** 2026-10-14.
-- **Registro do parecer:** https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170686193.
-- **Contribuições verificadas:** Security, Platform e QA na issue #12, vinculadas à rev.6 e ao HEAD `df5d5dabfb9b89163b3b14b0c265be7bff3d61ea`.
-- **Pendências bloqueantes do desenho:** Nenhuma.
-- **Pendências de ativação (não resolvidas):** comprovação de isolamento Work→principal, seleção/configuração humana de sandbox, testes negativos e autorização específica para iniciar canary. A ausência dessas provas **proíbe a ativação**.
+- **Registro do parecer:** [issue #12, reconciliação do Orchestrator](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170686193).
+- **Pendências bloqueantes do desenho:** Nenhuma após os pareceres.
+- **Pendências de ativação (não resolvidas):** comprovação de isolamento Work→principal, seleção/configuração humana de sandbox, testes negativos e autorização específica para iniciar canary.
 
-Este parecer vale exclusivamente para o desenho da **rev.6**. Nenhuma revisão de segurança comprova que as credenciais atuais já estão isoladas.
+### Reconciliação auditável dos pareceres da seção 13
+
+A tabela da **seção 13** é a fotografia histórica da elaboração da **rev.6**, anterior à conclusão dos handoffs na issue #12. Os valores `Pendente` / `Pendente, bloqueante` nela registrados **não representam pendências atuais de revisão do desenho**. Foram reconciliados posteriormente, **antes do aceite humano da rev.6**, pelos registros abaixo:
+
+| Papel / dependência indicada na seção 13 | Resultado efetivo em 2026-10-14 | Evidência de revisão da rev.6 |
+| --- | --- | --- |
+| Orchestrator / Tech Lead | `Pronto para aceite humano` na revisão arquitetural; nenhuma pendência de desenho | [review-adr e review-sdd reconciliados](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170686193) |
+| Security & Tenant Isolation | Favorável **ao desenho**, com isolamento efetivo da conexão Work ainda obrigatório antes da ativação | [parecer Security](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170649945) |
+| Platform & Observability | Favorável **ao desenho**, com viabilidade operacional ainda sujeita aos gates do piloto | [parecer Platform](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170662936) |
+| QA & Quality | Favorável à **testabilidade documental**; testes E2E/negativos ainda **não executados** | [parecer QA](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6170680845) |
+
+**Ordem comprovável:** proposta rev.6 → três handoffs e reconciliação técnica → [aceite humano formal](https://github.com/RamonRDR/SaaS-Project/issues/12#issuecomment-6171309622). Pareceres gerados por subagentes de IA, **não por auditores humanos externos**.
+
+**Natureza desta reconciliação:** errata de status/provenance na **seção 16, fora das seções decisórias 1–14**, sem modificar uma decisão já `Accepted` ou falsificar um novo ciclo de revisão. A regra 45 de `AGENTS.md` mantém a seção 13 original imutável; este registro posterior é a fonte da situação **atual** dos pareceres. Se futuramente for necessário alterar **materialmente** o conteúdo decisório, será exigida **ADR sucessora com novo ID e aprovação humana própria**, não reescrita da rev.6.
+
+**Limite explícito:** o parecer favorável autoriza apenas o aceite **documental** do desenho da Opção A; não prova isolamento real das credenciais, não aprova ativação, não libera merge do PR #11 e não conclui `PHASE-0-G`.
 
 ## 17. Aceite humano
 
