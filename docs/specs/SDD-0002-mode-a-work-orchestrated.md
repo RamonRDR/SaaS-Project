@@ -1,329 +1,232 @@
-# SDD-0002 - Modo A com desenvolvimento orquestrado pelo Work
+# SDD-0002 - Piloto Mode A: Work em sandbox com promoção humana
 
 ## Metadados
 
 - **ID:** SDD-0002
-- **Título:** Modo A com desenvolvimento orquestrado pelo Work e gates independentes no GitHub
+- **Título:** Piloto temporário Work em sandbox e promoção humana online
 - **Status:** In Review
-- **Versão:** 0.5
+- **Versão:** 0.6
 - **Responsável pela especificação:** Product & SDD
 - **Responsável humano pela aprovação:** responsável pelo repositório
 - **Data de criação:** 2026-10-13
-- **Última atualização:** 2026-10-13
-- **Entrega / issue / PR relacionada:** Issues #1, #8, #10 e proposta documental desta branch
-- **ADRs relacionados:** ADR-0015 rev.5 (`Proposed`), ADR-0014 rev.5 (`Accepted`), ADR-0010 (`Accepted`)
-- **SDDs relacionadas:** SDD-0001 v1.6 (`Approved`, vigente, sucessão proposta)
+- **Última atualização:** 2026-10-14
+- **Entrega / issue / PR relacionada:** issue #10, canaries issue #8 e PR #11
+- **ADRs relacionados:** ADR-0015 rev.6 (`Proposed`), ADR-0014 rev.5 (`Accepted`), ADR-0010 (`Accepted`)
+- **SDDs relacionadas:** SDD-0001 v1.6 (`Approved`, ainda vigente)
 
 ### Estados permitidos e validade
 
-`Draft`, `In Review`, `Approved`, `Superseded`. Versão **0.5 em revisão**, sem parecer `review-sdd` nem aprovação humana. As seções 1 a 24 são conteúdo material e qualquer modificação posterior exige controle de versão/parecer conforme `docs/specs/SDD-TEMPLATE.md`. A aprovação de elaborar a proposta **não é aprovação da SDD**. A SDD-0001 v1.6 continua vigente; não pode ser marcada `Superseded` antes da eventual aprovação da SDD-0002.
-
-**Racional de sucessão:** a mudança não é ajuste pontual da v1.6; substitui o componente de IA/claim/Budget Broker e o requisito de não usar Work como caminho de execução. Um novo ID preserva o contrato anterior aprovado sem reescrita histórica.
+`Draft`, `In Review`, `Approved` e `Superseded`. Esta **v0.6 está em revisão** e não possui parecer favorável nem aprovação documental humana. A escolha humana da opção A em 14/10/2026 **autoriza direcionamento e revisão da proposta, não aprovação da SDD**, habilitação de task ou merge. Mudanças materiais invalidam parecer da versão anterior.
 
 ## 1. Contexto
 
-O repositório público `RamonRDR/SaaS-Project` possui engenharia de fundação, Mode A interativo e `PHASE-0-G` planejada. A SDD-0001 v1.6 descreve runtime Actions-only com inferência programática paga, claim universal, ledger financeiro, reviewer isolado e publisher trusted. O responsável quer executar desenvolvimento unattended dentro da franquia ChatGPT, sem comprar ou ativar OpenAI API. Três canaries do Work/GitHub em 13/10/2026 provaram wake-up, desenvolvimento/PR/CI e uma rodada CI failure → remediação → CI success (issue #8). Essas evidências não tornam confiáveis entrega de eventos, proteção de paths, review ou continuidade irrestrita.
+A ADR-0014 rev.5 e a SDD-0001 v1.6 descrevem o runtime Actions-only com Budget Broker, atualmente documentalmente aprovado e sem ativação paga autorizada. Três canaries Work/GitHub (issue #8) demonstraram wake-up, desenvolvimento de PR e uma remediação de CI. PR #11 propôs publicação autônoma, mas múltiplos P1 do Codex sobre concorrência e revogação da capacidade de escrita (`WRITER_CAPABILITY_REVOCATION`) culminaram em escalada anti-loop na issue #10.
+
+O responsável **aprovou a opção A temporária**: Work produz **somente no sandbox isolado** e humano promove manualmente mudanças pequenas para PR no repositório principal. A publicação automática é **adiada**, não tratada como risco residual aceito.
 
 ## 2. Problema
 
-A arquitetura vigente exige implementar uma infraestrutura financeira e de inferência que não corresponde ao orçamento autorizado, e os ciclos de implementação estão presos em `LOOP_ESCALATION_REQUIRED` para `INTAKE_RECOVERY_API_CAPACITY` (PR #4). O sistema ainda não possui um contrato aprovado para usar Work como executor contínuo de código sem quebrar os gates de revisão/segurança e sem aceitar prompts como controles de permissão.
+Obter ganho de desenvolvimento online usando a franquia Work sem conceder ao agente escrita no principal, autorizações forjáveis, credenciais de importação automáticas, compra de API paga ou merge fora dos gates. A promoção humana é deliberada para eliminar do piloto a corrida de token/POST em voo.
 
 ## 3. Objetivo
 
-Entregar um **piloto verificável de autonomia supervisionada**, com Work criando e corrigindo código exclusivamente dentro de escopo/branch confiáveis; GitHub mantendo evidências independentes de CI, integridade e proveniência; CODEX-01 separado do autor; merge sempre humano. Garantir pausa segura quando não houver Work, quota, evento, permissão ou evidência. **Não prometer alta disponibilidade nem autonomia incondicional.**
+Conseguir 1 piloto pequeno e reproduzível: evento legítimo → Work cria candidato no sandbox → humano valida diff e transfere mudança por GitHub web → branch/PR principal → GOV/SEC/testes/Codex do HEAD principal → READY e autorização humana de merge em momento posterior. Medir latência, esforço manual e pontos de bloqueio sem prometer continuidade total.
 
 ## 4. Escopo
 
-- Contrato de tarefa Work acionada por atividade suportada no GitHub, com wake-up idempotente, fontes atuais e identificação humana.
-- Estados, eventos, observabilidade, reconciliação read-only e timeout definidos.
-- Desenvolvimento Work em **sandbox separado** (identidade limitada) e publicação confiável em PR same-repo do principal somente após validação de manifesto, grant humano e exclusão durável; forks não recebem privilégios.
-- GitHub Actions como CI independente e verificador de escopo/segurança; provar permissões efetivas, proteção de `main` e consequências de bypass.
-- CODEX-01 independente, no HEAD congelado, e gate de aprovação humana antes do merge.
-- Testes positivos/negativos de evento, concorrência, integridade, perda de evento, revisão atrasada, anti-loop e bloqueio.
-- Custo de IA programática da OpenAI **zero**, sem secrets de API nem auto-upgrade.
-- Documentação, implantação gradual, critérios de aceite e rollback. Sem qualquer ativação por esta proposta.
+- Registro e verificação de sandbox e conexão GitHub Work tecnicamente limitada a esse sandbox.
+- Tarefa Work temporária criada/habilitada **pelo humano**, com escopo reversível, paths permitidos e limite de tentativas.
+- PR draft de candidato apenas sandbox, sem segredos nem comandos não confiáveis.
+- Checklist/manual de diff completo, allowlist/denylist e transporte online da mudança pequena por humano.
+- Novo PR principal por humano, checks `governance`/`secret-scan`, testes pertinentes, `CODEX-01` HEAD final e gates humanos conforme `AGENTS.md`.
+- Observação e registro de evidências, tratamento de falha/duplicata e rollback para estado read-only.
 
 ## 5. Fora de escopo
 
-- Alterar o schema do SaaS, Django, Flutter, PostgreSQL, n8n ou tenants nesta fase.
-- Aprovar/mergear PRs #4/#6/#7/#9 ou transferir automaticamente o código experimental para a `main`.
-- Usar `OPENAI_API_KEY` ou OpenAI API, mesmo para fallback.
-- Remediação automática de forks, workflows, prompts/skills, governança, ADRs, SDDs, autenticação/segredos, branch protection e control plane.
-- Declarar quota Work ilimitada, periodicidade garantida, entrega exatamente uma vez ou cumprimento de SLA.
-- Autorizar merge principal, mutação financeira ou `PHASE-0-G completed`.
-- Tratar relatório do agente ou texto de comentário como prova independente de CI/review.
+- Work tocar `RamonRDR/SaaS-Project` por API, GitHub App ou outro meio delegado.
+- Publicador automático, broker de credencial, `GITHUB_TOKEN` com write de importação, PostgreSQL, `scope_receipts`, `PUBLISH_INTENT`, `trusted_publication_gate` ou alteração de workflow principal.
+- Garantia de wake-up, recuperação automatizada, exactly-once distribuído, merge autônomo e edição de control plane por Work.
+- OpenAI API paga, novas subscriptions, segredos de produção, banco/tenants, Flutter, Django ou n8n.
+- Encerrar PRs legados, concluir `PHASE-0-G` ou mudar status de ADR/SDD vigente por inferência.
 
 ## 6. Atores e jornadas afetadas
 
-| Ator | Jornada / interação | Impacto |
-| --- | --- | --- |
-| Responsável humano | Aprova escopo e decisões materiais, avalia READY, autoriza merge | Gate preservado |
-| GitHub / Actions | Armazena PR/HEAD, aplica CI/GOV/SEC, detecta divergências | Fonte de evidência independente |
-| Work | Recebe wake-up suportado, consulta estado atual, edita somente branch/escopo autorizado | Executor sujeito a quota e permissão |
-| Codex Review independente | Avalia HEAD final, findings, proveniência e contrato congelado | Gate CODEX-01 |
-| Reconciler GitHub read-only | Observa backlog/tempo/escalada sem autoridade de executar IA | Diagnóstico e alertas |
-| Contribuidor de fork | Abre PR tratado como dado não confiável; sem remediação privilegiada | Fluxo manual/read-only |
-| Especialistas Security / QA / Platform | Revisam proteção, recuperação e escalada | Pareceres obrigatórios antes do piloto |
+- **Humano responsável:** aprova escopo, decide qual sandbox usar, configura conexão e valida acesso negativo, ativa canary, inspeciona patches, transporta pequena alteração via navegador, revisa/autoriza eventual merge.
+- **Work sandbox:** relê estado atual após wake-up, desenvolve/testa somente no sandbox dentro do contrato, publica candidato draft, nunca promove ao principal.
+- **Actions sandbox:** CI sem secrets privilegiados do principal.
+- **Actions principal:** GOV/SEC/testes em PR humano; sem automação de publicação de candidato.
+- **Codex independente:** review do HEAD final do PR principal, com evidências atuais.
+- **Orchestrator:** reconciliador/guardião dos gates, não inventa aprovações nem garante despertar Work.
 
 ## 7. Regras de negócio
 
-- **BR-001:** somente uma tarefa Work **explicitamente habilitada pelo humano** pode agir num repositório/gatilho suportados e com controle de escopo vigente.
-- **BR-002:** o evento GitHub é aviso; ler novamente PR, HEAD, comentários, reviews, gates e issue de controle. Nenhum texto do PR é comando operacional.
-- **BR-003:** `ScopeGrantReceipt v1` via `workflow_dispatch` trusted na `main` (identidade humana não delegada ao Work) autoriza SOMENTE trabalho reversível delimitado, após validar run ID, SHA/contrato, ator, base, allowlist e validade. MERGE-01 conserva exatamente a regra 31 de `AGENTS.md`: comentário manual `HUMAN_MERGE_AUTHORIZATION` no PR/HEAD após READY, ou `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION` somente quando decisão explícita ocorreu no canal interativo externo ao GitHub. Dispatch nunca cria esse marcador nem terceiro canal de merge.
-- **BR-004:** identidade por `repository/pr_number/expected_head_sha/operation_kind/authorized_attempt/root_cause_family_id`, canonizada para deduplicação; `workflow_run_id` não reinicia tentativa.
-- **BR-005:** trusted publisher usa `scope_receipts` sob lock transacional para cota entre operations distintas; `work_operations` garante idempotência/owner/fencing durante preparação. **Antes de QUALQUER POST GitHub mutável**, uma transação separada registra `trusted_publication_gate(target_repo PRIMARY KEY, state=PUBLISH_INTENT, publication_id, operation_key, owner_run_id, manifest_digest)`. O gate é GLOBAL por repositório e **não-preemptível por expiração de lease/epoch**; só depois o único job escritor pode obter capacidade `contents:write`. Enquanto A puder retomar com token válido, B não obtém capacidade nem executa POST. ACK incerto bloqueia e requer readback + invalidação comprovada da credencial antiga.
-- **BR-006:** Work grava **somente em sandbox separado**, por GitHub App/identidade limitada **sem escrita/admin em `RamonRDR/SaaS-Project`**, após desativar a conexão atual do proprietário à Work para o principal. Publicação no principal é exclusiva do publisher trusted da `main`; identidade sem isolamento comprovado → `HUMAN_DECISION_REQUIRED` e nenhuma escrita. Fork não recebe escrita privilegiada.
-- **BR-007:** antes de **qualquer blob/commit/ref/PR** no principal, publisher sem execução de código externo verifica manifest completo e normalizado, allowlist aprovada e denylist do control plane (`.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/engineering/**`, `docs/specs/**`, `docs/adr/**`, `docs/PROJECT_STATUS.md`), caminhos ambíguos, symlink, submodule, modes/binários e tamanho. Qualquer violação rejeita **o patch inteiro pré-escrita** e exige `HUMAN_DECISION_REQUIRED`. CI pós-PR é defesa adicional, não barreira suficiente.
-- **BR-008:** após publicação autorizada pelo trusted publisher, checks independentes GitHub comparam o diff completo final contra receipt/escopo, negam paths protegidos e validam origem/HEAD; o ruleset `main-protection` ativa PR obrigatório, resolução de review e `governance`/`secret-scan`. Essa etapa é complementar à validação pré-escrita; não substitui autorização humana nem revisão final.
-- **BR-009:** evidência atual: ruleset `main-protection` ID `25036481` `active`, `bypass_actors=[]`, `~DEFAULT_BRANCH`, checks `governance` e `secret-scan`, PR obrigatório, resolução de threads e zero aprovações. Essa proteção foi **implementada e verificada**, mas não restringe o poder da conexão GitHub atualmente delegada ao Work. Provar revogação dessa conexão e que a nova identidade só escreve no sandbox. Sem prova, piloto fica bloqueado.
-- **BR-010:** não disponibilizar `OPENAI_API_KEY`, endpoint pago ou compra automática. Se o Work/Codex exigir cota/créditos extras, transicionar `BLOCKED_EXTERNAL`, sem gastar.
-- **BR-011:** Work pode consultar CI, mas nunca emitir `CI_PASSED` baseado apenas no próprio relatório. A evidência vem do GitHub, identificada pelo HEAD correto.
-- **BR-012:** `CODEX-01` independente exige `base_ref`, `merge_base_sha`, `head_sha`, `payload_digest` de manifest completo `merge-base → HEAD`, `trusted_review_contract_digest` completo do workflow/prompt/schema/parser/policies/modelo/dependências da `main` e `review_context_fingerprint` desses campos. Revalidar os três digests/merge-base **antes de READY**, mesmo se HEAD não mudar; divergência invalida clean. Mudança isolada base tip exige CI/mergeability novos. Sem prova → bloqueio, sem API paga.
-- **BR-013:** findings bloqueantes são corrigidos no escopo ou escalados; aceitação de risco é sempre decisão humana; não rebaixar severidades automaticamente.
-- **BR-014:** após 3 tentativas sobre a mesma causa sem progresso, pingue-pongue, deadlock ou falta de evidência, emitir `LOOP_ESCALATION_REQUIRED`. Nova causa independente pode seguir o lifecycle.
-- **BR-015:** alterações de control plane, escopo novo, exceção de segurança, vendor pago, mudanças sensíveis ou migration destrutiva levam a `HUMAN_DECISION_REQUIRED`.
-- **BR-016:** `READY_FOR_HUMAN_MERGE` requer evidência GitHub `MERGE_ALLOWED`, CI/GOV/SEC, CODEX-01 no HEAD e contrato `REVIEW_CONTRACT_FROZEN`; não confere permissão para merge.
-- **BR-017:** MERGE-01 exige READY/`ORCHESTRATOR_READY`, `MERGE_ALLOWED` e autorização humana posterior no mesmo PR/HEAD por um dos dois canais vigentes: comentário manual `HUMAN_MERGE_AUTHORIZATION` no PR ou registro `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION` somente de decisão explícita no canal interativo do Orquestrador. Revalidar `ready.created_at < authorization_record.created_at < merged_at` e provenance; `ScopeGrantReceipt` não aprova merge.
-- **BR-018:** perda/coalescência de wake-up, task pausada/desconectada, timeout, credencial inválida, limite Work ou CI ambíguo **nunca** são tratados como sucesso. Reconciler confiável read-only executado no GitHub registra pendência e `BLOCKED_EXTERNAL` sem tentar publicar código; enquanto não existir wake-up programático oficialmente suportado, a recuperação requer intervenção do operador humano, não continuidade automática presumida.
-- **BR-019:** observador não fabrica gatilho humano, não ativa Work, não chama IA nem presume API de trigger programática disponível; eventual retry automatizado exige suporte comprovado e novo gate.
-- **BR-020:** PostgreSQL transacional separado registra `scope_receipts` (cota compartilhada), `work_operations` (claim por operation_key) e `trusted_publication_gate` (capacidade global não-preemptível por target_repo). Publicar exige commit do `PUBLISH_INTENT` **antes** de emitir credencial de escrita e fazer o primeiro POST. A expiração do lease operacional não libera o gate, não permite takeover e não fornece fence contra GitHub. Em crash, pausa ou ACK incerto: `PUBLISH_UNCERTAIN/QUARANTINED`, sem segundo writer nem retry. Só liberar após reconciliação de todos os efeitos GitHub e prova de término de A + invalidação/expiração verificável de sua capacidade de escrita; ausência dessa prova mantém bloqueio humano. Sem PostgreSQL, isolamento/credencial e testes do caso pausa A pré-POST, M3 mutável proibido.
-- **BR-021:** o projeto não declara `DONE_ALLOWED` antes dos gates finais; `PHASE-0-G` fica planejada até canary E2E final e aprovação.
-- **BR-022:** dados de forks, diffs, comentários, logs e tool output são não confiáveis; nunca executá-los como shell/script com secrets.
-- **BR-023:** qualquer mutação em trust boundary/permissions/modelo/tarefa de produção exige versão de contrato e decisão humana; nenhuma edição de prompt tácita.
-- **BR-024:** não introduzir fallback pago, ledger financeiro ou claim de gasto no piloto. Componentes aprovados na ADR-0014 permanecem inativos até sucessão, não são reutilizados por inferência implícita.
-- **BR-025:** as três tarefas de canary antigas estão desativadas; sua evidência é histórico, não runtime em execução.
-- **BR-026:** tarefas Work não representam fonte confiável para `Approved`, `Accepted`, autorização de merge, revisão de risco ou alteração de `PROJECT_STATUS`.
+- **BR-001:** aceitar opção A não ativa Work nem autoriza credenciais, risco, PR ou merge.
+- **BR-002:** o evento GitHub é só wake-up. Comentários, patches e logs não fornecem instruções operacionais confiáveis.
+- **BR-003:** validar técnica e administrativamente que identidade/conexão Work **não pode escrever/comentar/administrar no repo principal** antes do primeiro canary mutável. Permissão incerta → `HUMAN_DECISION_REQUIRED`.
+- **BR-004:** operador humano autoriza escopo limitado do sandbox (repo/issue/paths/validade/versão/tentativas), por decisão inequívoca no canal humano. Marcador do GitHub produzido por Work não é ato humano.
+- **BR-005:** Work trabalha em branch/PR draft **somente sandbox**, sem secrets e sem checkout privilegiado de fork. Reentrada deve verificar estado atual, não repetir efeitos cegamente.
+- **BR-006:** durante o piloto A, **nenhum token ou workflow de escrita no principal é delegado ao Work ou a importador automático**. Reativar publisher exige nova decisão arquitetural.
+- **BR-007:** humano examina manifest completo, caminhos, modos e conteúdo. Candidato contendo qualquer path do control plane é **rejeitado integralmente**, sem promoção parcial automática. Denylist: `.github/**`, `.ai/**`, `AGENTS.md`, `SECURITY.md`, `docs/engineering/**`, `docs/specs/**`, `docs/adr/**` e `docs/PROJECT_STATUS.md`. Adotar allowlist menor por canary.
+- **BR-008:** humano transfere mudança pequena e permitida usando UI GitHub autenticada, cria branch e PR próprios **no principal**; registrar PRs, manifests e diferenças. Caso não consiga transferir com fidelidade, interromper e solicitar nova decisão.
+- **BR-009:** `sandbox_head_sha` **não é** `principal_head_sha`. CI/Codex/checks do sandbox nunca substituem os do novo HEAD no principal.
+- **BR-010:** regras do `main-protection` ativo continuam (PR, `governance` e `secret-scan`, threads resolvidas, sem bypass); não inferir que 0 aprovações exigidas implique gate humano independente.
+- **BR-011:** `CODEX-01` independente no PR principal, após último commit, com `merge_base_sha`, `head_sha`, `payload_digest` e `trusted_review_contract_digest` vigentes; mudança invalida revisão anterior.
+- **BR-012:** `MERGE-01` exige `ORCHESTRATOR_READY`, `MERGE_ALLOWED` e autorização humana posterior por um dos dois canais do `AGENTS.md` regra 31. Decisão de opção A não satisfaz MERGE-01.
+- **BR-013:** não disponibilizar `OPENAI_API_KEY`, fornecedor pago ou fallback faturável; limite Work/quota esgotada vira `BLOCKED_EXTERNAL`.
+- **BR-014:** após 3 tentativas sem progresso da mesma causa, escala `LOOP_ESCALATION_REQUIRED`; publisher automático já está fora do piloto por causa-raiz escalada.
+- **BR-015:** observador read-only não dispara Work automaticamente sem meio oficialmente comprovado; se evento perder, escalar ao operador.
+- **BR-016:** nenhum marcador `DONE_ALLOWED` ou `PROJECT_STATUS completed` sem gates finais, nem merge pela presente proposta.
+- **BR-017:** riscos ou paths fora de escopo, autorização forjada, desconexão do Work/CI e mudanças materiais impõem `HUMAN_DECISION_REQUIRED` / `BLOCKED_EXTERNAL`, jamais fail-open.
+- **BR-018:** alterações em identidade, GitHub App, control plane ou início de operações reais requerem aprovação humana específica e evidência, independente da aprovação da rota A.
 
 ## 8. Permissões e multi-tenancy
 
-**Permissões de engenharia:** contrato escolhido em `docs/engineering/MODE_A_WORK_HYBRID_TRUST_CONTRACT.md`: Work com identidade separada e acesso de escrita **apenas a sandbox**, nenhuma permissão de escrita/admin no principal; revogar conexão Work atual que age como proprietário antes de ativar. Ruleset `main-protection` ID 25036481 foi conferido `active` sem bypass, mas conta GitHub Work previamente delegada **não é barreira de autorização humana**. Somente workflow trusted em `main` controlado por ator humano sem credencial delegada gera receipts com run ID; somente publisher trusted com `contents:write` restrito valida o patch completo **antes** de gravar no principal. Sem auditabilidade e testes negativos, nenhuma execução produtiva.
-
-**Multi-tenancy:** não aplicável ao protótipo de engenharia, pois nenhum dado tenant-owned é manipulado. Fluxos de produto futuros exigirão isolamento de tenant e testes negativos, sem dispensa por execução assistida.
+Work deve acessar apenas um sandbox sem segredo e não possuir escrita/admin/comentário no principal. Uma conta owner GitHub conectada indiscriminadamente ao Work **não** atende. A instalação app e seus repositórios/permissões reais devem ser conferidos por humano, com evidência de teste negativo. Se não houver forma técnica de limitar, suspender o canary. Nenhuma operação tenant-owned, nenhuma migration ou dado pessoal de clientes é pertinente ao piloto.
 
 ## 9. Impacto no modelo de dados
 
-- Banco de produto: **não aplicável**.
-- Registros de orquestração por `repo/pr/head/operation` devem guardar `schema_version`, `expected_head_sha`, `control_issue`, `root_cause_family_id`, `attempt`, `state`, `source`, `last_checked_at`, `evidence_urls`, `trusted_contract_digest` quando aplicável.
-- **Backend de orquestração escolhido no desenho:** PostgreSQL transacional separado, sujeito a autorização. `scope_receipts` controla cota por grant, `work_operations` mantém owner/lease/fencing para preparação reversível; `trusted_publication_gate(target_repo)` reserva exclusividade global `PUBLISH_INTENT` antes da capacidade de POST e mantém trava se A for suspenso ou token ainda válido. GitHub não conhece o fencing_epoch; só é seguro liberar para B após readback e invalidação verificável da credencial anterior. Sem suporte técnico comprovado para essa invalidação, fail-closed e nenhuma ativação.
-- Duplicatas de evento/registro não podem emitir um segundo efeito de escrita para o mesmo HEAD.
+Banco do produto e de orquestração: **não aplicável**. Registros mínimos de auditoria por issue/PR: `scope_id`, `sandbox_repo`, `sandbox_pr_number`, `sandbox_head_sha`, `principal_pr_number`, `principal_head_sha`, allowlist, manifesto do diff conferido, ato de promoção humana, evidências CI/Codex/READY e timestamps. Não afirmar atomicidade ou CAS de Git comments.
 
 ## 10. Impacto no contrato da API
 
-Não há endpoint de produto ou breaking change de API de domínio. Interfaces propostas:
-- GitHub: `workflow_dispatch` humano-only na `main` concede **somente ScopeGrantReceipt de trabalho**; MERGE-01 segue os canais vigentes de `AGENTS.md`, não o dispatch. Publisher confiável valida manifesto, SHA e escopo.
-- Work: tarefa ativada pelo humano, evento somente wake-up no sandbox, GitHub App/conexão limitada a sandbox e sem credenciais de proprietário do principal.
-- CI/review: diff integral por merge-base/HEAD, fingerprint do contrato trusted (`merge_base_sha`/`payload_digest`/`trusted_review_contract_digest`), allowlist/denylist independente e CODEX-01 no contexto vigente.
-- **Ausência explícita** de chamadas `api.openai.com` e `OPENAI_API_KEY`.
-
-Schema exato de status/checkpoint, quotas e convenções de marcador devem ser especificados no PR técnico posterior e congelados antes de ativação, com versão e teste de compatibilidade.
+Nenhuma API de produto alterada. Integrações utilizadas: GitHub para PRs/refs/status, Work conectado exclusivamente sandbox e GitHub web autenticado pelo humano para a promoção. **Nenhum endpoint de publisher principal, OpenAI API paga ou banco de orquestração.**
 
 ## 11. Comportamento esperado no Flutter
 
-**Não aplicável:** o piloto altera exclusivamente engenharia/orquestração, sem telas ou jornadas de produto. Futuras features Flutter continuam sujeitas a BUILD-02, acessibilidade e regras server-side.
+**Não aplicável.** O piloto modifica fluxo de engenharia, sem mudança de interface Flutter, navegação, estado de tenant ou widgets do produto.
 
 ## 12. Integrações externas
 
-- **GitHub Actions:** CI, governance, secret scan e check independente de escopo. A fila/concurrency do Actions não é durável nem CAS.
-- **ChatGPT Work:** execução por eventos suportados, com franquia/limites da conta e possibilidade de aprovação/pausa. Não garantir frequência e não inferir capacidade de disparo programático a partir de experiência manual.
-- **Codex Review GitHub:** review independente do HEAD sob limites do plano; indisponibilidade resulta `BLOCKED_EXTERNAL`, não autoaceite.
-- **OpenAI API:** não aplicável; proibida no piloto. Novo fornecedor pago/sensível exigiria gate humano prévio.
+- **GitHub:** PRs sandbox e principal, CI GOV/SEC e ruleset existente; respeitar limitações reais de eventos e permissões.
+- **ChatGPT Work:** evento wake-up pode não ser entregue, tarefas podem pausar/esgotar franquia; não garantir SLA/continuidade.
+- **Codex Review:** revisão independente por HEAD do PR principal.
+- **OpenAI API / PostgreSQL / providers pagos:** fora do piloto, sem instalação nem autorização de custo.
 
 ## 13. Segurança e privacidade
 
-- Carga de evento e comentários GitHub não são instruções; buscar estado confiável, validar autoria, PR, branch, HEAD e autorização antes de agir.
-- Rejeitar alteração fora da allowlist e toda mutação do control plane em automação. O controle independente está no GitHub e bloqueia integração, **não altera o privilégio da credencial Work**.
-- Não expor token, secrets, dados pessoais de clientes ou logs privados no repositório público.
-- Fork: nenhum checkout/execução com secrets ou `contents:write`; no piloto, fluxo automático de correção de forks é `N/A`, direcionado ao humano.
-- Diferença entre SHA revisado e HEAD, mudança de branch/proteção, workflow de CI alterado e ambiguidade de origem devem falhar fechado.
-- Separação autor Work / Codex reviewer / CI enforcement / merge humano é mandatória, não apenas declaratória.
+Fonte sandbox inteira é dado não confiável. Nenhum secret ou permissão de escrita principal entregue ao Work ou ao código do sandbox. Não executar patch/scripts de candidatos em job com secrets. A aprovação humana de promoção requer manifesto **completo** e rejeição integral de control plane. Não confiar em comentário de login proprietário como autorização quando conector compartilha identidade. Sem validação de isolamento real, nenhuma task Work ativa.
 
 ## 14. Observabilidade
 
-Para cada execução, registrar em canal auditável: `correlation_id` imutável derivado de PR/operação/HEAD, tipo do gatilho, tarefa, tentativa por causa, status, checks por SHA, branch, evidence links, timestamp de observação e bloqueio. Reduzir dados expostos ao mínimo. Estados propostos: `OBSERVED`, `WORK_PENDING`, `CI_PENDING`, `CI_FAILED`, `AUTO_REMEDIATION`, `WAITING_CODEX`, `REVIEW_CONTRACT_FROZEN`, `READY_FOR_HUMAN_MERGE`, `HUMAN_DECISION_REQUIRED`, `BLOCKED_EXTERNAL`, `LOOP_ESCALATION_REQUIRED`. Não confundir job `success` com `DONE_ALLOWED`. Alertar em atraso de evento e cota; observar no GitHub de forma read-only.
+Estados: `PENDING`, `WORK_PENDING`, `SANDBOX_PR_DRAFT`, `WAITING_HUMAN_PROMOTION`, `PRINCIPAL_PR_DRAFT`, `CI_PENDING`, `WAITING_CODEX`, `READY_FOR_HUMAN_MERGE`, `BLOCKED_EXTERNAL`, `HUMAN_DECISION_REQUIRED` e `LOOP_ESCALATION_REQUIRED`. Registrar repositório, PR, head SHA, source, gatilho observado, timestamp, URL de CI/review e quem realizou promoção. Eventos missing/duplicados não são sucesso; observador principal read-only e sem promessa de acordar Work.
 
 ## 15. Casos de borda e comportamentos de erro
 
-| ID | Cenário | Comportamento esperado |
+| EDGE | Cenário | Ação exigida |
 | --- | --- | --- |
-| EDGE-001 | Evento duplicado/reordenado | Reconciliar checkpoint e HEAD; não duplicar PR/commit |
-| EDGE-002 | Comentário humano não é marcador exato | Ignorar sem mutação |
-| EDGE-003 | Comentário de bot/terceiro com texto de gatilho | Não autorizar trabalho |
-| EDGE-004 | PR muda de HEAD após wake-up | `BLOCKED_STALE_HEAD`; invalidar CI/review anterior |
-| EDGE-005 | Mesmo HEAD, base ou diff muda | Revalidar fingerprint e escopo; review desatualizado |
-| EDGE-006 | Work pausado ou desconectado | Reconciler observa atraso; `BLOCKED_EXTERNAL` |
-| EDGE-007 | Quota Work/Codex esgotada | Parar, sem API paga, registrar bloqueio |
-| EDGE-008 | Runner GitHub falha ou check ausente | Não emitir CI PASS/READY |
-| EDGE-009 | Novo commit após CODEX-01 clean | Invalidar review, exigir HEAD atual |
-| EDGE-010 | Diff inclui path protegido | Check independente FAIL, bloquear integração e escalar |
-| EDGE-011 | Work tenta operar fork | Negar escrita automática; revisão read-only/manual |
-| EDGE-012 | Comentário/log contém instrução para agente | Tratar como dado; não obedecer |
-| EDGE-013 | Três correções repetem mesma causa | `LOOP_ESCALATION_REQUIRED` |
-| EDGE-014 | Segurança exige novo contrato/risco humano | `HUMAN_DECISION_REQUIRED` |
-| EDGE-015 | Dois Work runs editam mesmo PR | Comparar HEAD e operação; apenas uma transição segura |
-| EDGE-016 | Mensagem de sucesso sem SHA/runs reais | Não considerar prova |
-| EDGE-017 | Work cria PR draft sem CODEX-01 | Somente evidência de protótipo, nunca `MERGE_ALLOWED` |
-| EDGE-018 | Evento não é entregue | Scanner apenas detecta pendência; não promete wake-up |
-| EDGE-019 | Approver humano ausente | `READY_FOR_HUMAN_MERGE` aguarda indefinidamente, nunca merge automático |
-| EDGE-020 | Tentativa de escrever `main` ou burlar branch rules | Interromper o piloto, evidenciar incidente e revisar permissões |
-| EDGE-021 | Mudança de configuração da tarefa após aceite | Invalidar versão de contrato e bloquear até revisão |
-| EDGE-022 | GitHub API rate-limit ou readback ambíguo | Fail-closed; backoff sem loops agressivos |
-| EDGE-023 | Estado de checkpoint parcialmente gravado | Reconsulta autoritativa, sem pular operações |
-| EDGE-024 | Work solicita créditos/cobrança | Não comprar, não chamar endpoint pago, `BLOCKED_EXTERNAL` |
-| EDGE-025 | Comentário via conector aparece como proprietário | Não inferir autorização humana por login; exigir ato independente |
-| EDGE-026 | Ruleset da main ativo, mas Work ainda conectado ao proprietário | Bloquear Work até revogar escrita/admin no principal e provar isolamento do sandbox |
-| EDGE-027 | Reconciler detecta trigger não entregue | Registrar pendência; intervenção humana caso não exista reativação programática suportada |
-| EDGE-028 | Diff sandbox toca `.github/**` antes de publicar | Publisher rejeita patch inteiro pré-escrita e escala decisão humana |
-| EDGE-029 | Reviewer muda contrato trusted sem HEAD mudar | Invalidar CODEX-01 pelo fingerprint, bloquear READY |
-| EDGE-030 | Dois runners publicadores disputam mesmo target_repo, A pausado pré-POST | B nunca adquire token enquanto `PUBLISH_INTENT` de A estiver ativo, mesmo com lease vencido |
-| EDGE-031 | Comentário Work tenta falsificar autorização ou dispatch tenta emitir registro interativo | Rejeitar; não criar `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION` de workflow_dispatch |
-| EDGE-032 | Work mantém permissão de escrita no principal | Proibir ativação, exigir revogação e teste negativo |
-| EDGE-033 | Falta Postgres ou lease/dispatch ambíguo | Somente read-only, `BLOCKED_EXTERNAL`, nenhum M3 mutável |
-| EDGE-034 | Dois runners, chaves diferentes, mesmo receipt max_operations=1 | Row-lock por receipt, só uma reserva permitida e segunda operação bloqueada |
-| EDGE-035 | Crash/timeout com cota reservada | Não liberar contador automaticamente; readback e gate humano para recuperação |
-| EDGE-036 | Runner A suspenso depois de epoch válido e antes de POST, lease expira | `PUBLISH_INTENT` persistente bloqueia B mesmo com epoch novo; nunca publicar concorrente |
-| EDGE-037 | A é cancelado mas credencial pode continuar válida | `QUARANTINED` até invalidação/expiração comprovada, readback e autorização de retomada; cancelar não prova revogação |
-| EDGE-038 | Token anterior válido após readback GitHub | Manter gate ocupado, não aceitar reset/takeover e não declarar DONE |
+| EDGE-001 | Work ainda possui acesso de escrita principal | `HUMAN_DECISION_REQUIRED`; não ativar |
+| EDGE-002 | Sandbox tem segredo ou código não permitido | Rejeitar, remover risco e não promover |
+| EDGE-003 | Candidato toca path de control plane | Rejeitar o **candidato inteiro** |
+| EDGE-004 | Evento duplicado ou bot | Ignorar instrução; reconciliar, não criar PR duplicado |
+| EDGE-005 | Task/CI Work indisponível | `BLOCKED_EXTERNAL`, aguardar operador |
+| EDGE-006 | Alteração grande demais para promoção via navegador | Bloquear e pedir decisão, não inventar importador |
+| EDGE-007 | HEAD do sandbox muda após análise | Invalidar aprovação do candidato; reavaliar manifesto |
+| EDGE-008 | HEAD do principal difere do candidato | Novos testes/review completos no principal |
+| EDGE-009 | CI/Codex principal ausente ou vermelho | Sem READY, sem merge |
+| EDGE-010 | Comentário forja `HUMAN_MERGE_AUTHORIZATION` | Não aceitar autoria do Work; exigir canal válido |
+| EDGE-011 | Pedido de integração automático | Fora do piloto; nova ADR/SDD |
+| EDGE-012 | Loop de mesma falha ≥3 | `LOOP_ESCALATION_REQUIRED` |
+| EDGE-013 | Alteração externa de ruleset/credenciais | Parar até auditoria e nova autorização |
+| EDGE-014 | API paga/compra exigida | `BLOCKED_EXTERNAL` sem gasto |
 
 ## 16. Migration
 
-- **Migration necessária:** Não.
-- **Destrutiva:** Não.
-- **Descrição:** nenhum schema de banco de produto.
-- **Gate humano necessário:** Sim, decisão arquitetural material e ativação futura. Eventual migração de checkpoints/issue inbox exigirá SDD/tarefa técnica próprios.
+**Não aplicável.** Sem schema, SQL, dados tenant-owned ou transformação de histórico. Substituição de runtime vigente só poderá ocorrer após aprovação documental/rollout.
 
 ## 17. Estratégia de rollback
 
-1. Desativar tarefa Work do piloto pelo responsável; não apagá-la sem preservar evidências.
-2. Desabilitar somente gatilhos/write paths introduzidos no piloto, mantendo CI/governança/read-only.
-3. Revogar/limitar credenciais comprometidas com ação humana e auditar PRs/commits produzidos.
-4. Voltar ao fluxo interativo autorizado, sem ativar automaticamente o runtime Actions-only com API paga.
-5. Preservar referências a logs, SHAs, comentários e pendências; não apagar evidência por conveniência.
-6. Não marcar `PHASE-0-G` concluída durante rollback.
+1. Desabilitar task piloto Work sandbox e impedir novos wake-ups.
+2. Suspender promoção manual, preservar PRs/logs/links/SHAs de ambos repositórios.
+3. Revalidar conexões e negar credenciais amplas ao Work; não presumir revogação instantânea de POST já enviado.
+4. Manter CI/governança principal e contrato vigente; nenhuma API paga ou publisher automático é ativada.
+5. Não marcar `PHASE-0-G` concluída por rollback.
 
 ## 18. Testes obrigatórios
 
 ### Unitários
-- Identidade de operação, deduplicação, estados, HEAD/fingerprint, lógica anti-loop por causa, validação de marcador/autoria e regex de paths protegidos.
-- Simular exceção de quota/timeout, comentário adversarial, checkpoint parcial e cancelamento.
-- Simular dois publicadores: A valida epoch, registra intenção, recebe write token e pausa **antes do primeiro POST**; expirar lease e tentar B; exigir bloqueio global. Após cancelamento, exigir invalidar credencial de A e reconciliar GitHub antes de B prosseguir.
+
+Validação documental de esquema de evidências/identificadores, denylist de paths, distinção `sandbox_head_sha` vs `principal_head_sha` e anti-loop, quando implementada a automação de observação.
 
 ### Integração
-- GitHub API read-only com mocks para retorno de PR/HEAD/CI/reviews atuais.
-- Compatibilidade de workflows e acesso mínimo; rate limit/backpressure.
-- Regras de branch/ruleset e check negativo de control plane por diff malicioso.
+
+- Confirmar permissão negativa da instalação/conexão Work no repositório principal antes do primeiro canary.
+- Confirmar ruleset `main-protection` e status checks principal nos PRs humanos.
+- Verificar que nenhum workflow principal usa token de escrita para importar diff sandbox.
 
 ### E2E
-- Reproduzir 3 canaries anteriores como baseline, mais três entregas **independentes** com CI e CODEX-01 final do HEAD antes de READY, sem merge.
-- Perda/coalescência de wake-up: observador detecta `BLOCKED_EXTERNAL`, sem afirmar que reparou.
-- Work em pausa/franquia limitada: status de bloqueio e retorno idempotente após reativação autorizada.
-- Mudança de HEAD enquanto CI/review demora: rejeitar evidência obsoleta.
-- Escrita de path protegido bloqueada independentemente antes de integração.
+
+- Uma tarefa Work sandbox produz PR draft e relatório de CI sem tocar principal.
+- Humano inspeciona manifesto e reproduz patch pequeno autorizado via GitHub web em PR principal.
+- GOV/SEC/CODEX principal operam no HEAD criado pelo humano; revisão do sandbox não é reutilizada.
+- Evento perdido, duplicata, quota esgotada, HEAD modificado e revogação de acesso produzem bloqueio sem promoção automática.
 
 ### Segurança / autorização / multi-tenancy
-- PR de fork hostil, prompt injection, comentário bot, alteração da tarefa e tentativa de tocar `main`; nenhum secret exposto.
-- Cross-tenant: N/A no piloto, pois não há código de produto ou dados de tenant.
-- Permissões reais do conector e proteção da branch principal devem ter evidência verificada; não basta uma simulação.
+
+Caminho proibido no candidato invalida patch inteiro; comentário de bot/owner delegado não aprova; nenhuma execução de PR de fork com secrets/write; tentativa de Work escrever no principal deve falhar pela permissão. Não há dados tenant-owned no piloto.
 
 ### Regressão
-- Testes de Governance Gates (GOV-01, SEC-01), suite de canary, ausência de API paga, gates de merge e revisão.
-- Canary da implementação antiga permanece desativado e não é tratado como novo runtime.
+
+Preservar regras de AGENTS.md, ADR-0014 e SDD-0001, checks e histórico de PRs; nenhum marcador de `PROJECT_STATUS completed` e nenhum merge sem gate humano.
 
 ## 19. Critérios de aceite
 
-- **AC-001 (gate documental):** a arquitetura define explicitamente o controle de escopo/autorização, o mecanismo de proteção da `main` ou sandbox isolado, recuperação de falhas e o fallback bloqueado; depois obtém parecer favorável de `review-adr`/`review-sdd` e aceite/aprovação humanos **específicos**, sem simular resultados de implantação. Sem esse gate documental, nem iniciar implementação sob novo contrato.
-- **AC-002 (gate de ativação):** tarefa Work com escopo/repo/evento/contrato/verificação humana independente, configuração conferida e credencial com alcance realmente isolado. Login de comentário não comprova autorização. Qualquer privilégio de escrita amplo não mitigado bloqueia.
-- **AC-003:** gatilho repetido da mesma operação não duplica commit/PR nem consome cota adicional; dois runners com `operation_key` DIFERENTES sob `scope_receipt_run_id` igual e `max_operations=1` não podem publicar ambos. Prova antes de M3.
-- **AC-004:** três execuções independentes chegam a `CI_PASSED`, `CODEX-01` no HEAD exato e `READY_FOR_HUMAN_MERGE` sem merge e sem pedido de continuação.
-- **AC-005 (gate de ativação):** Work só pode escrever em sandbox segregado; publisher trusted rejeita **antes de gravar blob/commit/ref** o changeset inteiro contendo control plane, symlink/submodule/path ambíguo ou fora da allowlist, transicionando `HUMAN_DECISION_REQUIRED`. CI no principal nega também merge; testar negativa do publisher e tentativa de escrita Work direta no principal.
-- **AC-006 (gate de ativação):** falha de evento/tarefa/quota detectada pelo observador GitHub read-only e marcada `BLOCKED_EXTERNAL` dentro de uma janela estabelecida após medição; sem compra automática de créditos nem suposição de retomada automática sem endpoint/gatilho confirmado.
-- **AC-007:** CODEX-01 independente com `merge_base_sha`, `head_sha`, `payload_digest`, `trusted_review_contract_digest`, `review_context_fingerprint` e completude do diff/closure trusted; revalidar imediatamente antes de READY e invalidar review por divergência mesmo com HEAD estável.
-- **AC-008:** nenhum arquivo da `main` alterado, merge não autorizado ou `PROJECT_STATUS completed` produzido pelo piloto.
-- **AC-009:** observador read-only possui evento/PR/HEAD/correlation/timestamp/estado e evidence URL por transição sem secrets.
-- **AC-010:** PostgreSQL serializa cota `scope_receipts` e operações idempotentes `work_operations`; `trusted_publication_gate` impede **globalmente** B de obter write token/publicar quando A registrou `PUBLISH_INTENT`, inclusive após o vencimento do lease. Simular A pausado depois de validar epoch e antes do POST; B tenta takeover e é bloqueado até que a capacidade antiga seja comprovadamente inválida. Crash, reentrada, token ainda válido, ACK incerto e readback devem falhar fechado. Prova E2E antes de M3.
-- **AC-011:** nenhum código de fork executado com secrets e nenhuma remediação privilegiada de fork.
-- **AC-012:** anti-loop escala após três tentativas sem progresso na mesma causa sem interromper causas independentes.
-- **AC-013:** matriz de BR/EDGE/AC da SDD-0001/ADR-0014 documenta o que foi substituído, mantido ou desativado; nenhum controle removido por silêncio.
-- **AC-014:** revisão de custos confirma que não há `OPENAI_API_KEY`, OpenAI API faturável nem fallback pago no piloto.
-- **AC-015:** documentação de rollback, condições de falha, restrições Work/Codex e canal de retomada humana é revisada antes da execução real.
-- **AC-016:** dispatch confiável origina somente ScopeGrantReceipt. Após READY, merge aceita apenas `HUMAN_MERGE_AUTHORIZATION` manual ou `ORCHESTRATOR_RECORDED_HUMAN_AUTHORIZATION` para decisão humana no canal interativo externo ao GitHub. Testar negação de falso comentário, dispatch fingindo autorização interativa, replay e autorização anterior a READY.
-- **AC-017:** ruleset principal `main-protection` ID 25036481 `active` com bypass vazio conferido. Ainda obrigatório auditor independente comprovar revogação da conexão Work com o principal e permissão write confinada ao sandbox, além de ausência de acesso Work ao canal `workflow_dispatch` humano.
+- **AC-001 documental:** ADR rev.6/SDD v0.6 revisadas formalmente, com pareceres aplicáveis e decisão humana de aceite/aprovação **separada** da escolha da opção A.
+- **AC-002 ativação:** identidade/conector Work prova não ter write/admin/comment no principal; sandbox aprovado e sem secrets.
+- **AC-003:** um canary Work limitado produz candidato draft exclusivamente no sandbox, sem alterar principal.
+- **AC-004:** manifesto completo, allowlist/denylist e promoção pequena por humano geram PR principal com registro auditável dos dois HEADs.
+- **AC-005:** GOV/SEC/testes e CODEX-01 exigidos no HEAD final **principal**; evidência sandbox não substitui.
+- **AC-006:** PR principal não recebe READY com CI/Codex pendente ou falho.
+- **AC-007:** MERGE-01 exige autorização humana válida **após READY**, no mesmo PR/HEAD; a decisão pela opção A não é merge grant.
+- **AC-008:** nenhum token de publicação automático, DB PostgreSQL de orquestração, publisher ou fallback de OpenAI API paga é criado/ativado.
+- **AC-009:** teste de Work sem acesso ao principal, candidato com control plane, fork, evento perdido, quota e duplicata interrompe conforme o caso.
+- **AC-010:** anti-loop da família `WRITER_CAPABILITY_REVOCATION` é preservado por remover publicação automática do piloto, não por considerar risco aceito.
+- **AC-011:** `PHASE-0-G` continua bloqueada até gates vigentes; nenhuma finalização implícita.
+- **AC-012:** sucesso do piloto é medido com esforço de promoção humana e limitações registradas, **não** anunciado como runtime unattended completo.
 
 ## 20. Evidências de validação esperadas
 
-- Links verificáveis dos três canaries: issue #8 e PRs #6/#7/#9.
-- SHA e run URLs dos CI vermelhos e verdes, inclusive check jobs e timestamps.
-- Captura da configuração efetiva da tarefa Work, limites/permissões e restrição de conexão.
-- CI negativo de control plane, fork, perda de evento, HEAD obsoleto, quota e permissão.
-- Pareceres de Security, Platform/Observability e QA com pendências resolvidas.
-- Codex Review independente para HEAD do PR piloto congelado; evidência `REVIEW_CONTRACT_FROZEN`.
-- Prova de que o gatilho não alterou `main` nem criou gasto via API.
+Canaries antigos (issue #8), ruleset ativo ID 25036481, configuração da conexão Work segregada, teste de permissão negativa, links e manifestos de PRs sandbox/principal, screenshots/configuração quando pertinente, checks GOV/SEC, revisão Codex do HEAD principal, comentários de READY e autorização humana com timestamps. Evidência de sandbox isolado não é presumida hoje.
 
 ## 21. Dependências
 
-- ADR-0015 rev.5 em `Proposed`, revisão `review-adr` e aceite humano antes de se tornar vigente.
-- SDD-0001 v1.6 e ADR-0014 rev.5 continuam vigentes até sucessão formal.
-- GitHub Actions, permissões/rulesets verificáveis, tarefa Work e recursos disponíveis na assinatura.
-- Suporte real a trigger de comentário PR, revisões independentes CODEX-01, branch de teste.
-- Plano `docs/engineering/MODE_A_WORK_HYBRID_IMPLEMENTATION_PLAN.md`.
-- Diagnóstico de PR #4/#6 não deve ser reaberto silenciosamente, pois segue em escalada específica.
+Aprovação formal ADR/SDD; sandbox adequado; possibilidade real de limitar a instalação/conexão Work sem acesso ao principal; tarefa Work disponível ao humano; interface GitHub suficiente para a alteração pequena; GOV/SEC/CODEX ativos. Sem suporte de isolamento, parar e voltar à decisão humana; nenhuma nova infraestrutura paga prevista.
 
 ## 22. Riscos conhecidos
 
-| Risco | Impacto | Mitigação |
-| --- | --- | --- |
-| Quota Work e ausência de SLA | Paralisação de tarefas | `BLOCKED_EXTERNAL` + acompanhamento read-only + operador humano |
-| Conector GitHub com escrita ampla | Bypass de caminhos protegidos | Escopo mínimo, branch protection, check independente e gate humano |
-| Evento perdido/coalescido | Backlog sem progresso | Observador de estado, alerta, retomada somente com suporte confirmado |
-| Revisão Codex ausente ou em SHA obsoleto | Merge inseguro | CODEX-01 independente com HEAD exato |
-| Prompt injection e forks | Exfiltração/patch não confiável | Não seguir comentários/logs, não executar forks com secrets |
-| Loop de remediação | Custo de franquia e atraso | 3 tentativas/cause + bloqueio explícito |
-| Falsa sensação de autonomia por canaries | Ativação prematura | Provas negativas, métricas e aprovação humana final |
-| Diferença de semântica entre Work e Actions | Estado divergente | GitHub como fonte de evidência, readback antes de toda transição |
+Confusão entre aprovação de direção e autorização de ativação; conexão owner ampla; erro na promoção manual; divergência entre diffs; perda de wake-up; review Codex indisponível; falsa sensação de autonomia end-to-end. Publicação automática e revogação de tokens em voo são riscos **fora do piloto**, não aceitos.
 
 ## 23. Dúvidas abertas
 
-**Dúvidas de desenho bloqueantes para aprovação documental:**
-1. **Desenho escolhido:** Work somente em sandbox por identidade segregada, publisher trusted no principal e ruleset `main-protection` já ativo; **pendência de execução:** proprietário deve revogar o vínculo Work atual e provar permissões/isolamento antes de ativar.
-2. **Desenho escolhido:** PostgreSQL para cota por receipt e operation_key, mais gate global não-preemptível `PUBLISH_INTENT` antes de toda mutação GitHub. Pendente implementar e provar invalidação verificável da capacidade antiga, sem supor que lease expirado ou cancelamento de Action revogue token.
-3. **Desenho escolhido:** ScopeGrantReceipt via dispatch humano-only para trabalho, MERGE-01 pelos dois canais do AGENTS.md regra 31. Pendente comprovar isolamento da credencial Work e rejeição de marcador falso.
-4. Na ausência de wake-up programático comprovado, o observador ficará apenas read-only com escalada ao operador. Qual é o canal de alerta e procedimento de intervenção humana? Um SLA numérico depende de medidas, não de hipótese.
-5. **Desenho escolhido:** `review_context_fingerprint` vinculando `merge_base_sha`, `payload_digest` e `trusted_review_contract_digest` da closure trusted da main, com readback antes de READY; **pendência:** implementação e testes de invalidação com HEAD estável.
-6. Como arquivar ou isolar PR #4/#6 mantendo evidências e sem aceitar P2 residual silenciosamente? A decisão não libera integração.
-7. Que duração/concorrência máximas serão medidas na implantação do piloto? O contrato pode exigir bloqueio conservador antes de qualquer número arbitrário.
+- Qual repositório sandbox será aprovado? `RamonRDR/SaaS-CAS-Lab` existe, mas só pode ser escolhido após avaliação de isolamento/escopo.
+- A instalação Work GitHub permite delimitar realmente repositórios e permissões? O conector atual acessa principal; **não há prova de isolamento**.
+- Qual primeiro changeset minúsculo será usado para conferir promoção via navegador sem segredos?
+- Qual procedimento humano mais confiável para registrar manifesto/diff e conferir fidelidade após recriação no principal?
+- Como medir retomada de eventos perdidos sem prometer gatilho programático não comprovado?
 
-**Separação de fases:** dúvidas 1–5 exigem estratégia arquitetural explícita antes de `Approved`; a instrumentação real, testes negativos e medidas só são possíveis nos PRs técnicos pós-aprovação, e continuam **bloqueios de ativação** até comprovados. Não marcar esta SDD `Approved` enquanto decisões materiais persistirem. Não exigir provas de software ainda não autorizado como pré-condição circular para aceitar o desenho.
+Estas perguntas **bloqueiam ativação**, e a incapacidade técnica de isolar identidade bloqueia o desenho; não são evidência de implementação já realizada.
 
 ## 24. ADRs necessários ou relacionados
 
-- **ADR necessário:** Sim, ADR-0015 rev.5 `Proposed`.
-- **Referências:** ADR-0014 rev.5 `Accepted`, ADR-0010 `Accepted`, ADR-0013 histórica.
-- **Motivo:** alterar o executor de IA e desativar caminho financeiro/pago da arquitetura vigente exige nova decisão e sucessão formal; não implica aceitar a ADR proposta antecipadamente.
+ADR-0015 rev.6 `Proposed` é necessária para sucessão futura. ADR-0014 rev.5 `Accepted`, ADR-0010 e SDD-0001 v1.6 permanecem vigentes. A decisão humana de direção A não altera o estado destes documentos.
 
 ## 25. Histórico de revisão
 
-| Versão | Data | Autor | Alteração |
+| Versão | Data | Autor | Mudança |
 | --- | --- | --- | --- |
-| 0.1 | 2026-10-13 | Product & SDD | Criação de SDD sucessora após três canaries e autorização para elaborar |
-| 0.2 | 2026-10-13 | Orchestrator / Tech Lead | Ajustes materiais após review-sdd v0.1, sem aprovação humana |
-| 0.3 | 2026-10-13 | Orchestrator / Tech Lead | Rev.3: sandbox+publisher pré-escrita, CODEX fingerprint, PostgreSQL/fencing e receipts humanos |
-| 0.4 | 2026-10-13 | Orchestrator / Tech Lead | Corrigir MERGE-01 conforme AGENTS.md e cota serializada por receipt entre chaves distintas |
-| 0.5 | 2026-10-13 | Orchestrator / Tech Lead | Protocolo global PUBLISH_INTENT não-preemptível para fechar corrida stale writer pré-POST |
+| 0.1 | 2026-10-13 | Product & SDD | Proposta sucessora inicial |
+| 0.2 | 2026-10-13 | Orchestrator / Tech Lead | Segurança e proveniência |
+| 0.3 | 2026-10-13 | Orchestrator / Tech Lead | Sandbox, publisher, fencing e review context |
+| 0.4 | 2026-10-13 | Orchestrator / Tech Lead | MERGE-01 vigente e cota por grant |
+| 0.5 | 2026-10-13 | Orchestrator / Tech Lead | `PUBLISH_INTENT` global pré-POST |
+| 0.6 | 2026-10-14 | Product & SDD / Orchestrator | Diretriz humana A: **promoção manual**, sem publisher automático/DB, risco anti-loop isolado |
 
 ## 26. Aprovação
 
-### Revisão
+- **Status de aprovação:** Não aprovada; `In Review`.
+- **Responsável humano:** responsável pelo repositório.
+- **Versão aprovada:** não aplicável.
+- **Data/registro da aprovação:** não aplicável.
+- **Parecer `review-sdd` vigente:** pendente, específico da v0.6.
+- **Não confundir:** autorização de elaborar a proposta e escolher piloto A ≠ aprovação desta SDD ≠ autorização de ativação ≠ MERGE-01.
 
-- **Parecer de `review-sdd`:** Pendente, não executado.
-- **Versão revisada:** Não aplicável.
-- **Pendências bloqueantes:** pareceres especializados e revisão do desenho de confiança da v0.3. A implementação de sandbox/receipts/PostgreSQL/CI permanece gate de ativação posterior, sem declarar seus testes como PASS.
-- **Pendências não bloqueantes:** Formatação e detalhamento de observabilidade/implantação, sujeitos ao review.
-
-### Gate humano
-
-- **Aprovada:** Não.
-- **Versão aprovada:** Não aplicável.
-- **Responsável humano:** Responsável pelo repositório.
-- **Data:** Não aplicável.
-- **Registro da aprovação:** Não aplicável.
-
-**SDD-0001 v1.6 permanece `Approved` até SDD-0002 aprovada formalmente.** Uma eventual substituição de status requer ação administrativa posterior e evidência humana explícita; não realizar nesta branch.
+**SDD-0001 v1.6 permanece `Approved` e não deve ser marcada `Superseded` nesta branch.**
