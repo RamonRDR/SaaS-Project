@@ -1,0 +1,28 @@
+name: Work Development Canary
+
+on:
+  pull_request:
+    paths:
+      - tests/canary/work_wakeup.py
+      - tests/canary/test_work_wakeup.py
+      - .github/workflows/work-dev-canary.yml
+
+permissions:
+  contents: read
+
+jobs:
+  canary-tests:
+    name: canary-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout sem persistência de credenciais
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validar sintaxe e indentação com biblioteca padrão
+        run: |
+          python3 -m compileall -q tests/canary
+          python3 -m tabnanny tests/canary
+      - name: TEST-01 - Validar marcador exato do canary
+        run: python3 -m unittest discover -s tests/canary -p 'test_work_wakeup.py' -v
