@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import json
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mode_a_reconcile.py"
 SPEC = importlib.util.spec_from_file_location("mode_a_reconcile", MODULE_PATH)
@@ -132,6 +136,45 @@ class ReconcilerTests(unittest.TestCase):
                 MODULE.ReconcileError, "INVALID_API_PATH"
             ):
                 MODULE.get_json(value)
+
+    def test_external_errors_remain_blocked_external(self):
+        for reason in ("GITHUB_UNAVAILABLE", "GITHUB_RESPONSE_TOO_LARGE"):
+            with self.subTest(reason=reason):
+                self.assertEqual(MODULE.failure_state(reason), "BLOCKED_EXTERNAL")
+                output = io.StringIO()
+                with patch.object(MODULE, "reconcile", side_effect=MODULE.ReconcileError(reason)):
+                    with redirect_stdout(output):
+                        exit_code = MODULE.main(["--pr-number", "13", "--expected-head", SHA])
+                result = json.loads(output.getvalue())
+                self.assertEqual(exit_code, 2)
+                self.assertEqual(result["state"], "BLOCKED_EXTERNAL")
+                self.assertFalse(result["writes_enabled"])
+
+    def test_local_violations_require_human_decision(self):
+        local_reasons = (
+            "PR_OUTSIDE_TRUSTED_SCOPE",
+            "UNTRUSTED_CHECK",
+            "CHECKPOINT_SCOPE_MISMATCH",
+            "HEAD_DIVERGED",
+            "INVALID_CHECKS_RESPONSE",
+            "INVALID_GITHUB_RESPONSE",
+            "AMBIGUOUS_CHECK",
+            "INVALID_CHECKPOINT",
+            "UNKNOWN_FAILURE",
+        )
+        for reason in local_reasons:
+            with self.subTest(reason=reason):
+                self.assertEqual(MODULE.failure_state(reason), "HUMAN_DECISION_REQUIRED")
+                output = io.StringIO()
+                with patch.object(MODULE, "reconcile", side_effect=MODULE.ReconcileError(reason)):
+                    with redirect_stdout(output):
+                        exit_code = MODULE.main(["--pr-number", "13", "--expected-head", SHA])
+                result = json.loads(output.getvalue())
+                self.assertEqual(exit_code, 2)
+                self.assertEqual(result["state"], "HUMAN_DECISION_REQUIRED")
+                self.assertFalse(result["writes_enabled"])
+                self.assertFalse(result["ready_for_merge"])
+                self.assertFalse(result["paid_inference_enabled"])
 
     def test_event_instruction_is_not_an_input(self):
         fetch, requested = transport()
