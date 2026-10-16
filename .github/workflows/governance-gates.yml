@@ -73,6 +73,39 @@ jobs:
             --base-sha "$BASE_SHA" \
             --head-sha "$HEAD_SHA"
 
+  mode-a-reconciler:
+    name: mode-a-reconciler
+    runs-on: ubuntu-latest
+    # Job independente, sem secrets e sem privilegios de publicacao.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          persist-credentials: false
+
+      - name: Verificar arquivos esperados
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/mode_a_reconcile.py
+          test -f tests/test_mode_a_reconcile.py
+
+      - name: CODE-01 - Validar sintaxe Python
+        run: python3 -m compileall -q scripts/mode_a_reconcile.py tests/test_mode_a_reconcile.py
+
+      - name: TEST-01 - Testes unitarios do reconciliador
+        run: python3 -m unittest discover -s tests -p 'test_mode_a_reconcile.py' -v
+
+      - name: CODE-01 - Lint do reconciliador
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.14.0
+          ruff check scripts/mode_a_reconcile.py tests/test_mode_a_reconcile.py
+
   secret-scan:
     name: secret-scan
     runs-on: ubuntu-latest
