@@ -25,6 +25,17 @@ class ReconcileError(Exception):
     """Representa um bloqueio conservador, sem expor resposta remota."""
 
 
+EXTERNAL_BLOCKERS = frozenset({"GITHUB_UNAVAILABLE", "GITHUB_RESPONSE_TOO_LARGE"})
+
+
+def failure_state(reason: str) -> str:
+    """Distingue indisponibilidade externa de falha local/de confiança.
+
+    Motivos desconhecidos exigem decisão humana e nunca falham de forma aberta.
+    """
+    return "BLOCKED_EXTERNAL" if reason in EXTERNAL_BLOCKERS else "HUMAN_DECISION_REQUIRED"
+
+
 def canonical_digest(value: object) -> str:
     """Gera identidade reproduzível, independente da ordem de chaves JSON."""
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -204,7 +215,8 @@ def main(argv: list[str] | None = None) -> int:
         previous = read_json(args.checkpoint) if args.checkpoint else None
         decision = reconcile(args.pr_number, args.expected_head, checkpoint=previous)
     except ReconcileError as exc:
-        print(json.dumps({"state": "BLOCKED_EXTERNAL", "reason": str(exc), "writes_enabled": False,
+        reason = str(exc)
+        print(json.dumps({"state": failure_state(reason), "reason": reason, "writes_enabled": False,
                           "paid_inference_enabled": False, "ready_for_merge": False}, sort_keys=True))
         return 2
     print(json.dumps(decision, sort_keys=True))
