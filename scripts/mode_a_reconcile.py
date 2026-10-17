@@ -33,7 +33,9 @@ def failure_state(reason: str) -> str:
 
     Motivos desconhecidos exigem decisão humana e nunca falham de forma aberta.
     """
-    return "BLOCKED_EXTERNAL" if reason in EXTERNAL_BLOCKERS else "HUMAN_DECISION_REQUIRED"
+    return (
+        "BLOCKED_EXTERNAL" if reason in EXTERNAL_BLOCKERS else "HUMAN_DECISION_REQUIRED"
+    )
 
 
 def canonical_digest(value: object) -> str:
@@ -90,7 +92,14 @@ def get_json(path: str) -> dict[str, Any]:
         if len(data) > MAX_RESPONSE_BYTES:
             raise ReconcileError("GITHUB_RESPONSE_TOO_LARGE")
         result = json.loads(data)
-    except (HTTPError, URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (
+        HTTPError,
+        URLError,
+        TimeoutError,
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+    ) as exc:
         raise ReconcileError("GITHUB_UNAVAILABLE") from exc
     if not isinstance(result, dict):
         raise ReconcileError("INVALID_GITHUB_RESPONSE")
@@ -106,7 +115,11 @@ def check_summary(payload: dict[str, Any], head_sha: str) -> dict[str, str]:
         raise ReconcileError("INCOMPLETE_CHECKS_RESPONSE")
     results: dict[str, str] = {}
     for name in REQUIRED_CHECKS:
-        matched = [check for check in checks if isinstance(check, dict) and check.get("name") == name]
+        matched = [
+            check
+            for check in checks
+            if isinstance(check, dict) and check.get("name") == name
+        ]
         if len(matched) > 1:
             raise ReconcileError("AMBIGUOUS_CHECK")
         if not matched:
@@ -206,7 +219,9 @@ def reconcile(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Reconciliar PR sem escrita ou API paga")
+    parser = argparse.ArgumentParser(
+        description="Reconciliar PR sem escrita ou API paga"
+    )
     parser.add_argument("--pr-number", type=int, required=True)
     parser.add_argument("--expected-head", required=True)
     parser.add_argument("--checkpoint", type=Path)
@@ -216,8 +231,18 @@ def main(argv: list[str] | None = None) -> int:
         decision = reconcile(args.pr_number, args.expected_head, checkpoint=previous)
     except ReconcileError as exc:
         reason = str(exc)
-        print(json.dumps({"state": failure_state(reason), "reason": reason, "writes_enabled": False,
-                          "paid_inference_enabled": False, "ready_for_merge": False}, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "state": failure_state(reason),
+                    "reason": reason,
+                    "writes_enabled": False,
+                    "paid_inference_enabled": False,
+                    "ready_for_merge": False,
+                },
+                sort_keys=True,
+            )
+        )
         return 2
     print(json.dumps(decision, sort_keys=True))
     return 0
