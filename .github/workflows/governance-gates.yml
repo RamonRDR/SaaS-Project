@@ -73,6 +73,57 @@ jobs:
             --base-sha "$BASE_SHA" \
             --head-sha "$HEAD_SHA"
 
+  mode-a-reconciler:
+    name: mode-a-reconciler
+    runs-on: ubuntu-latest
+    # Job independente, sem secrets e sem privilegios de publicacao.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # refs/tags/v4
+        with:
+          persist-credentials: false
+
+      - name: Verificar arquivos esperados
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/mode_a_reconcile.py
+          test -f tests/test_mode_a_reconcile.py
+
+      - name: CODE-01 - Validar sintaxe Python
+        run: python3 -m compileall -q scripts/mode_a_reconcile.py tests/test_mode_a_reconcile.py
+
+      - name: TEST-01 - Testes unitarios do reconciliador
+        run: python3 -m unittest discover -s tests -p 'test_mode_a_reconcile.py' -v
+
+      - name: Instalar formatter e linter fixados
+        run: python3 -m pip install --disable-pip-version-check ruff==0.14.0
+
+      - name: CODE-01 - Ruff lint
+        run: ruff check scripts/mode_a_reconcile.py tests/test_mode_a_reconcile.py
+
+      - name: CODE-01 - Ruff format
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff format --check scripts/mode_a_reconcile.py tests/test_mode_a_reconcile.py || {
+            ruff format --diff scripts/mode_a_reconcile.py tests/test_mode_a_reconcile.py
+            exit 1
+          }
+
+      - name: SEC-02 - Instalar auditor fixado
+        run: python3 -m pip install --disable-pip-version-check pip-audit==2.9.0
+
+      - name: SEC-02 - Auditar dependencia Ruff do CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'ruff==0.14.0\n' > "${RUNNER_TEMP}/mode-a-v2-ci-requirements.txt"
+          python3 -m pip_audit --disable-pip --no-deps -r "${RUNNER_TEMP}/mode-a-v2-ci-requirements.txt"
+
   secret-scan:
     name: secret-scan
     runs-on: ubuntu-latest
