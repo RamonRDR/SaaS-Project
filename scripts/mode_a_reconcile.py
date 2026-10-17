@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 
 REPOSITORY = "RamonRDR/SaaS-Project"
 API_ROOT = f"https://api.github.com/repos/{REPOSITORY}"
-REQUIRED_CHECKS = ("governance", "secret-scan")
+REQUIRED_CHECKS = ("governance", "secret-scan", "mode-a-reconciler")
 MAX_RESPONSE_BYTES = 1_048_576
 MAX_CHECKPOINT_BYTES = 16_384
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
