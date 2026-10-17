@@ -21,30 +21,47 @@ NEW_SHA = "b" * 40
 
 
 def pr(*, sha=SHA, draft=False, state="open", repo=MODULE.REPOSITORY):
-    return {"number": 13, "state": state, "draft": draft, "merged_at": None,
-            "head": {"sha": sha, "repo": {"full_name": repo}},
-            "base": {"ref": "main", "repo": {"full_name": MODULE.REPOSITORY}}}
+    return {
+        "number": 13,
+        "state": state,
+        "draft": draft,
+        "merged_at": None,
+        "head": {"sha": sha, "repo": {"full_name": repo}},
+        "base": {"ref": "main", "repo": {"full_name": MODULE.REPOSITORY}},
+    }
 
 
 def checks(*, governance="success", secret="success", reconciler="success", sha=SHA):
     def check(name, result):
-        return {"name": name, "head_sha": sha,
-                "app": {"slug": "github-actions"}, "status": "completed", "conclusion": result}
-    return {"total_count": 3, "check_runs": [
-        check("governance", governance),
-        check("secret-scan", secret),
-        check("mode-a-reconciler", reconciler),
-    ]}
+        return {
+            "name": name,
+            "head_sha": sha,
+            "app": {"slug": "github-actions"},
+            "status": "completed",
+            "conclusion": result,
+        }
+
+    return {
+        "total_count": 3,
+        "check_runs": [
+            check("governance", governance),
+            check("secret-scan", secret),
+            check("mode-a-reconciler", reconciler),
+        ],
+    }
 
 
 def transport(pr_payload=None, check_payload=None):
-    responses = {"/pulls/13": pr_payload or pr(),
-                 f"/commits/{SHA}/check-runs?per_page=100": check_payload or checks()}
+    responses = {
+        "/pulls/13": pr_payload or pr(),
+        f"/commits/{SHA}/check-runs?per_page=100": check_payload or checks(),
+    }
     requested = []
 
     def fetch(path):
         requested.append(path)
         return responses[path]
+
     return fetch, requested
 
 
@@ -52,7 +69,9 @@ class ReconcilerTests(unittest.TestCase):
     def test_read_only_path_and_expected_checks(self):
         fetch, requested = transport()
         value = MODULE.reconcile(13, SHA, fetch)
-        self.assertEqual(requested, ["/pulls/13", f"/commits/{SHA}/check-runs?per_page=100"])
+        self.assertEqual(
+            requested, ["/pulls/13", f"/commits/{SHA}/check-runs?per_page=100"]
+        )
         self.assertEqual(value["reason"], "WAITING_CODEX_INDEPENDENT_REVIEW")
         self.assertEqual(value["state"], "REVIEWING")
         self.assertFalse(value["ready_for_merge"])
@@ -92,12 +111,16 @@ class ReconcilerTests(unittest.TestCase):
         for status in ("failure", "cancelled", "timed_out"):
             with self.subTest(status=status):
                 fetch, _ = transport(check_payload=checks(secret=status))
-                self.assertEqual(MODULE.reconcile(13, SHA, fetch)["reason"], "CI_VALIDATION_REQUIRED")
+                self.assertEqual(
+                    MODULE.reconcile(13, SHA, fetch)["reason"], "CI_VALIDATION_REQUIRED"
+                )
 
     def test_missing_check_does_not_progress(self):
         payload = {"total_count": 1, "check_runs": checks()["check_runs"][:1]}
         fetch, _ = transport(check_payload=payload)
-        self.assertEqual(MODULE.reconcile(13, SHA, fetch)["checks"]["secret-scan"], "missing")
+        self.assertEqual(
+            MODULE.reconcile(13, SHA, fetch)["checks"]["secret-scan"], "missing"
+        )
 
     def test_mode_a_reconciler_check_required_to_progress(self):
         for conclusion in ("failure", "cancelled", "timed_out"):
@@ -126,7 +149,10 @@ class ReconcilerTests(unittest.TestCase):
 
     def test_partial_or_duplicate_checks_rejected(self):
         partial = {"total_count": 1000, "check_runs": checks()["check_runs"]}
-        duplicate = {"total_count": 4, "check_runs": checks()["check_runs"] + checks()["check_runs"][:1]}
+        duplicate = {
+            "total_count": 4,
+            "check_runs": checks()["check_runs"] + checks()["check_runs"][:1],
+        }
         for payload in (partial, duplicate):
             with self.subTest(payload=payload):
                 fetch, _ = transport(check_payload=payload)
@@ -147,8 +173,12 @@ class ReconcilerTests(unittest.TestCase):
     def test_checkpoint_from_different_head_is_rejected(self):
         fetch, _ = transport()
         with self.assertRaisesRegex(MODULE.ReconcileError, "CHECKPOINT_SCOPE_MISMATCH"):
-            MODULE.reconcile(13, SHA, fetch, {"repository": MODULE.REPOSITORY,
-                                              "pr_number": 13, "head_sha": NEW_SHA})
+            MODULE.reconcile(
+                13,
+                SHA,
+                fetch,
+                {"repository": MODULE.REPOSITORY, "pr_number": 13, "head_sha": NEW_SHA},
+            )
 
     def test_invalid_input_fails_closed(self):
         fetch, _ = transport()
@@ -159,10 +189,15 @@ class ReconcilerTests(unittest.TestCase):
             MODULE.reconcile(13, "HEAD", fetch)
 
     def test_only_two_endpoints_are_permitted(self):
-        for value in ("/issues/13/comments", "/pulls/13/../secrets", "/pulls/13?x=1",
-                      "/commits/" + SHA + "/check-runs?per_page=1000"):
-            with self.subTest(value=value), self.assertRaisesRegex(
-                MODULE.ReconcileError, "INVALID_API_PATH"
+        for value in (
+            "/issues/13/comments",
+            "/pulls/13/../secrets",
+            "/pulls/13?x=1",
+            "/commits/" + SHA + "/check-runs?per_page=1000",
+        ):
+            with (
+                self.subTest(value=value),
+                self.assertRaisesRegex(MODULE.ReconcileError, "INVALID_API_PATH"),
             ):
                 MODULE.get_json(value)
 
@@ -171,9 +206,13 @@ class ReconcilerTests(unittest.TestCase):
             with self.subTest(reason=reason):
                 self.assertEqual(MODULE.failure_state(reason), "BLOCKED_EXTERNAL")
                 output = io.StringIO()
-                with patch.object(MODULE, "reconcile", side_effect=MODULE.ReconcileError(reason)):
+                with patch.object(
+                    MODULE, "reconcile", side_effect=MODULE.ReconcileError(reason)
+                ):
                     with redirect_stdout(output):
-                        exit_code = MODULE.main(["--pr-number", "13", "--expected-head", SHA])
+                        exit_code = MODULE.main(
+                            ["--pr-number", "13", "--expected-head", SHA]
+                        )
                 result = json.loads(output.getvalue())
                 self.assertEqual(exit_code, 2)
                 self.assertEqual(result["state"], "BLOCKED_EXTERNAL")
@@ -193,11 +232,17 @@ class ReconcilerTests(unittest.TestCase):
         )
         for reason in local_reasons:
             with self.subTest(reason=reason):
-                self.assertEqual(MODULE.failure_state(reason), "HUMAN_DECISION_REQUIRED")
+                self.assertEqual(
+                    MODULE.failure_state(reason), "HUMAN_DECISION_REQUIRED"
+                )
                 output = io.StringIO()
-                with patch.object(MODULE, "reconcile", side_effect=MODULE.ReconcileError(reason)):
+                with patch.object(
+                    MODULE, "reconcile", side_effect=MODULE.ReconcileError(reason)
+                ):
                     with redirect_stdout(output):
-                        exit_code = MODULE.main(["--pr-number", "13", "--expected-head", SHA])
+                        exit_code = MODULE.main(
+                            ["--pr-number", "13", "--expected-head", SHA]
+                        )
                 result = json.loads(output.getvalue())
                 self.assertEqual(exit_code, 2)
                 self.assertEqual(result["state"], "HUMAN_DECISION_REQUIRED")
@@ -209,7 +254,9 @@ class ReconcilerTests(unittest.TestCase):
         fetch, requested = transport()
         value = MODULE.reconcile(13, SHA, fetch)
         self.assertEqual(value["reason"], "WAITING_CODEX_INDEPENDENT_REVIEW")
-        self.assertTrue(all(path.startswith(("/pulls/", "/commits/")) for path in requested))
+        self.assertTrue(
+            all(path.startswith(("/pulls/", "/commits/")) for path in requested)
+        )
 
 
 if __name__ == "__main__":
