@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf 'ruff==0.14.0\\n' > "${RUNNER_TEMP}/mode-a-v2-ci-requirements.txt"
+          printf 'ruff==0.14.0\n' > "${RUNNER_TEMP}/mode-a-v2-ci-requirements.txt"
           python3 -m pip_audit --disable-pip --no-deps -r "${RUNNER_TEMP}/mode-a-v2-ci-requirements.txt"
 
   secret-scan:
