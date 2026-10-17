@@ -26,11 +26,15 @@ def pr(*, sha=SHA, draft=False, state="open", repo=MODULE.REPOSITORY):
             "base": {"ref": "main", "repo": {"full_name": MODULE.REPOSITORY}}}
 
 
-def checks(*, governance="success", secret="success", sha=SHA):
+def checks(*, governance="success", secret="success", reconciler="success", sha=SHA):
     def check(name, result):
         return {"name": name, "head_sha": sha,
                 "app": {"slug": "github-actions"}, "status": "completed", "conclusion": result}
-    return {"total_count": 2, "check_runs": [check("governance", governance), check("secret-scan", secret)]}
+    return {"total_count": 3, "check_runs": [
+        check("governance", governance),
+        check("secret-scan", secret),
+        check("mode-a-reconciler", reconciler),
+    ]}
 
 
 def transport(pr_payload=None, check_payload=None):
@@ -95,9 +99,34 @@ class ReconcilerTests(unittest.TestCase):
         fetch, _ = transport(check_payload=payload)
         self.assertEqual(MODULE.reconcile(13, SHA, fetch)["checks"]["secret-scan"], "missing")
 
+    def test_mode_a_reconciler_check_required_to_progress(self):
+        for conclusion in ("failure", "cancelled", "timed_out"):
+            with self.subTest(conclusion=conclusion):
+                fetch, _ = transport(check_payload=checks(reconciler=conclusion))
+                value = MODULE.reconcile(13, SHA, fetch)
+                self.assertEqual(value["reason"], "CI_VALIDATION_REQUIRED")
+                self.assertEqual(value["checks"]["mode-a-reconciler"], "failed")
+                self.assertFalse(value["ready_for_merge"])
+
+        missing = checks()
+        missing["check_runs"] = missing["check_runs"][:2]
+        missing["total_count"] = 2
+        fetch, _ = transport(check_payload=missing)
+        value = MODULE.reconcile(13, SHA, fetch)
+        self.assertEqual(value["checks"]["mode-a-reconciler"], "missing")
+        self.assertEqual(value["reason"], "CI_VALIDATION_REQUIRED")
+
+        pending = checks()
+        pending["check_runs"][2]["status"] = "in_progress"
+        pending["check_runs"][2]["conclusion"] = None
+        fetch, _ = transport(check_payload=pending)
+        value = MODULE.reconcile(13, SHA, fetch)
+        self.assertEqual(value["checks"]["mode-a-reconciler"], "pending")
+        self.assertEqual(value["reason"], "CI_VALIDATION_REQUIRED")
+
     def test_partial_or_duplicate_checks_rejected(self):
         partial = {"total_count": 1000, "check_runs": checks()["check_runs"]}
-        duplicate = {"total_count": 3, "check_runs": checks()["check_runs"] + checks()["check_runs"][:1]}
+        duplicate = {"total_count": 4, "check_runs": checks()["check_runs"] + checks()["check_runs"][:1]}
         for payload in (partial, duplicate):
             with self.subTest(payload=payload):
                 fetch, _ = transport(check_payload=payload)
